@@ -22,7 +22,7 @@ async function testGemini() {
         console.log('📤 Sending request to Gemini...');
 
         const response = await llm.generateContent({
-            model: 'gemini-1.5-flash',
+            model: 'gemini-2.5-flash',
             prompt: 'Say "Hello from Gemini Monitor!" in exactly 5 words.',
             temperature: 0.7,
             maxOutputTokens: 20,

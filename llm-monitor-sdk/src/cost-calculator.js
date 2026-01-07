@@ -20,6 +20,8 @@ const PRICING = {
         'gemini-1.5-pro': { input: 3.5, output: 10.5 },
         'gemini-1.5-flash': { input: 0.075, output: 0.3 },
         'gemini-1.5-flash-8b': { input: 0.0375, output: 0.15 },
+        'gemini-2.0-flash-exp': { input: 0, output: 0 },
+        'gemini-2.5-flash': { input: 0, output: 0 }, // Free experimental model
     },
     anthropic: {
         'claude-3-opus-20240229': { input: 15, output: 75 },
