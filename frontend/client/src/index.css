@@ -1,13 +1,13 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
+@theme {
   --radius-sm: 2px;
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -25,46 +25,84 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-openai: var(--openai);
+  --color-anthropic: var(--anthropic);
+  --color-google: var(--google);
 }
 
 :root {
-  /* Light Mode - Premium Slate & Indigo */
+  /* ☀️ Aydınlık Mod (Silk White & Professional Slate) */
   --background: #F1F5F9;
+  /* Kartların öne çıkmasını sağlayan yumuşak gri */
   --foreground: #0F172A;
+  /* Deep Navy - Keskin ve net metinler */
   --card: #FFFFFF;
+  /* Saf beyaz */
   --card-foreground: #0F172A;
   --primary: #4F46E5;
+  /* Indigo - Aydınlık modda okunaklı */
   --primary-foreground: #FFFFFF;
   --secondary: #E2E8F0;
   --secondary-foreground: #475569;
+  /* Muted Slate */
   --muted: #F8FAFC;
-  --muted-foreground: #64748B;
+  --muted-foreground: #475569;
+  /* Muted Slate */
   --accent: #4F46E5;
   --accent-foreground: #FFFFFF;
-  --destructive: #E11D48;
+  --destructive: #FF003C;
+  /* Neon Crimson */
+  --destructive-foreground: #FFFFFF;
   --border: rgba(15, 23, 42, 0.08);
+  /* Belirgin ama rahatsız etmeyen sınırlar */
   --input: #FFFFFF;
   --ring: #4F46E5;
+
+  /* Semantik Renkler */
+  --success: #10B981;
+  /* Emerald Green */
+  --openai: #10B981;
+  /* Mint Green */
+  --anthropic: #F59E0B;
+  /* Amber Gold */
+  --google: #3B82F6;
+  /* Electric Blue */
 }
 
 .dark {
-  /* Dark Mode - Deep Obsidian & Electric Indigo */
+  /* 🌑 Karanlık Mod (Deep Obsidian & Electric Indigo) */
   --background: #020203;
+  /* Saf siyahın bir ton üstü */
   --foreground: #F8FAFC;
-  --card: rgba(10, 10, 12, 0.7);
+  /* Silk White */
+  --card: #0A0A0C;
+  /* Arka plandan hafifçe ayrılan koyu ton */
   --card-foreground: #F8FAFC;
   --primary: #6366F1;
+  /* Electric Indigo */
   --primary-foreground: #FFFFFF;
   --secondary: #0F172A;
   --secondary-foreground: #94A3B8;
+  /* Slate Gray - Yardımcı bilgiler */
   --muted: #0F172A;
-  --muted-foreground: #64748B;
+  --muted-foreground: #94A3B8;
   --accent: #6366F1;
   --accent-foreground: #FFFFFF;
   --destructive: #FF003C;
+  /* Neon Crimson */
+  --destructive-foreground: #FFFFFF;
   --border: rgba(255, 255, 255, 0.06);
+  /* Rim Lighting - İnce ve zarif */
   --input: #0A0A0C;
   --ring: #6366F1;
+
+  /* Semantik Renkler (Dark modda aynı kalabilir veya hafif ayarlanabilir, talep edilen kodlar sabit) */
+  --success: #10B981;
+  --openai: #10B981;
+  --anthropic: #F59E0B;
+  --google: #3B82F6;
 }
 
 @layer base {
@@ -86,7 +124,10 @@
   }
 
   .dark .instrument-card {
+    /* Deep Obsidian kart efekti için gölge ayarı */
     box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    /* Kartın hafif cam hissini korumak için bg-card opaklığı gerekirse html tarafında ayarlanabilir, 
+       ancak base renk #0A0A0C olarak ayarlandı. */
     background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.02), transparent);
   }
 
@@ -104,7 +145,7 @@
     @apply backdrop-blur-xl bg-white/60 dark:bg-black/60 border-b border-white/20 dark:border-white/10 shadow-md;
   }
 
-  /* Neon Glow Effects */
+  /* Neon Glow Effects - Primary Rengi (#6366F1) baz alınarak */
   .neon-glow-primary {
     box-shadow: 0 0 10px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.2);
   }
