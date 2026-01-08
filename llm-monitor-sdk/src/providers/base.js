@@ -65,7 +65,7 @@ export class BaseProvider {
     async _sendToBackend(logEntry) {
         try {
             await axios.post(`${this.config.backendUrl}/logs`, logEntry, {
-                timeout: 5000, // 5 saniye timeout (MongoDB Atlas için)
+                timeout: 30000, // 30 saniye timeout (MongoDB Atlas için)
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Project-ID': this.config.projectId,

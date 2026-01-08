@@ -22,11 +22,16 @@ const io = new Server(httpServer, {
 app.use(cors());
 app.use(express.json());
 
+// Serve static files (dashboard)
+app.use(express.static('public'));
+
 // MongoDB bağlantısı
 const connectDB = async () => {
     try {
         await mongoose.connect(process.env.MONGODB_URI, {
-            serverSelectionTimeoutMS: 5000,
+            serverSelectionTimeoutMS: 30000, // 30 seconds
+            socketTimeoutMS: 45000, // 45 seconds
+            maxPoolSize: 10,
         });
         console.log('✅ MongoDB connected successfully');
     } catch (error) {

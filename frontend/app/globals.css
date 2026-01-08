@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 2, 6, 23;
+  /* slate-950 */
+  --background-end-rgb: 2, 6, 23;
+  /* slate-950 */
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
+}
+
+/* Custom Scrollbar for Webkit (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+  /* slate-900 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  /* slate-700 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+  /* slate-600 */
+}
+
+/* Data Table Hover Effect */
+tr {
+  transition: background-color 0.15s ease-in-out;
+}
+
+/* Smooth transitions */
+* {
+  border-color: #1e293b;
+  /* scale-800 default border */
+}
+
+.recharts-default-tooltip {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
