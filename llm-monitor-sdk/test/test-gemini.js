@@ -12,7 +12,7 @@ async function testGemini() {
 
     const llm = new GeminiProvider({
         apiKey: process.env.GEMINI_API_KEY,
-        backendUrl: 'http://localhost:3000/api',
+        backendUrl: 'http://localhost:5000/api',
         projectId: 'test-app',
         environment: 'development',
         debug: true,

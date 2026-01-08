@@ -1,117 +1,129 @@
 import express from 'express';
-import { Log } from '../models/Log.js';
 
 const router = express.Router();
 
-// 📊 Genel istatistik özeti
+// Memory'den logları al (logs.js'den import edemeyiz, global kullanacağız)
+const getMemoryLogs = () => {
+    // logs.js'deki memoryLogs'a erişmek için global kullanıyoruz
+    return global.memoryLogs || [];
+};
+
+// Özet istatistikler
 router.get('/summary', async (req, res) => {
     try {
         const { projectId, startDate, endDate } = req.query;
 
-        const match = {};
-        if (projectId) match.projectId = projectId;
+        let logs = getMemoryLogs();
+
+        // Filtreleme
+        if (projectId) {
+            logs = logs.filter(log => log.projectId === projectId);
+        }
         if (startDate || endDate) {
-            match.timestamp = {};
-            if (startDate) match.timestamp.$gte = new Date(startDate);
-            if (endDate) match.timestamp.$lte = new Date(endDate);
+            logs = logs.filter(log => {
+                const logDate = new Date(log.timestamp);
+                if (startDate && logDate < new Date(startDate)) return false;
+                if (endDate && logDate > new Date(endDate)) return false;
+                return true;
+            });
         }
 
-        const summary = await Log.aggregate([
-            { $match: match },
-            {
-                $group: {
-                    _id: null,
-                    totalCalls: { $sum: 1 },
-                    successfulCalls: {
-                        $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] }
-                    },
-                    failedCalls: {
-                        $sum: { $cond: [{ $eq: ['$status', 'error'] }, 1, 0] }
-                    },
-                    totalTokens: { $sum: '$totalTokens' },
-                    totalCost: { $sum: '$cost' },
-                    avgDuration: { $avg: '$duration' },
-                    maxDuration: { $max: '$duration' },
-                    minDuration: { $min: '$duration' },
-                }
-            }
-        ]);
+        const summary = {
+            totalCalls: logs.length,
+            successfulCalls: logs.filter(log => log.status === 'success').length,
+            failedCalls: logs.filter(log => log.status === 'error').length,
+            totalTokens: logs.reduce((sum, log) => sum + (log.totalTokens || 0), 0),
+            totalCost: logs.reduce((sum, log) => sum + (log.cost || 0), 0),
+            avgDuration: logs.length > 0
+                ? logs.reduce((sum, log) => sum + (log.duration || 0), 0) / logs.length
+                : 0
+        };
 
-        res.json(summary[0] || {
-            totalCalls: 0,
-            successfulCalls: 0,
-            failedCalls: 0,
-            totalTokens: 0,
-            totalCost: 0,
-            avgDuration: 0,
-            maxDuration: 0,
-            minDuration: 0,
-        });
+        res.json(summary);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// 📈 Provider bazlı breakdown
+// Provider/Model bazlı breakdown
 router.get('/by-provider', async (req, res) => {
     try {
-        const { projectId, startDate, endDate } = req.query;
+        const { projectId } = req.query;
 
-        const match = {};
-        if (projectId) match.projectId = projectId;
-        if (startDate || endDate) {
-            match.timestamp = {};
-            if (startDate) match.timestamp.$gte = new Date(startDate);
-            if (endDate) match.timestamp.$lte = new Date(endDate);
+        let logs = getMemoryLogs();
+
+        if (projectId) {
+            logs = logs.filter(log => log.projectId === projectId);
         }
 
-        const breakdown = await Log.aggregate([
-            { $match: match },
-            {
-                $group: {
-                    _id: { provider: '$provider', model: '$model' },
-                    calls: { $sum: 1 },
-                    tokens: { $sum: '$totalTokens' },
-                    cost: { $sum: '$cost' },
-                    avgDuration: { $avg: '$duration' },
-                }
-            },
-            { $sort: { cost: -1 } }
-        ]);
+        const breakdown = {};
 
-        res.json(breakdown);
+        logs.forEach(log => {
+            const key = `${log.provider}:${log.model}`;
+            if (!breakdown[key]) {
+                breakdown[key] = {
+                    _id: { provider: log.provider, model: log.model },
+                    calls: 0,
+                    tokens: 0,
+                    cost: 0
+                };
+            }
+            breakdown[key].calls++;
+            breakdown[key].tokens += log.totalTokens || 0;
+            breakdown[key].cost += log.cost || 0;
+        });
+
+        const result = Object.values(breakdown).sort((a, b) => b.cost - a.cost);
+        res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
 
-// ⏱️ Zaman serisi (time-series) data
+// Zaman serisi verileri
 router.get('/timeseries', async (req, res) => {
     try {
         const { projectId, interval = 'hour' } = req.query;
 
-        const groupBy = interval === 'day'
-            ? { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } }
-            : { $dateToString: { format: '%Y-%m-%dT%H:00:00', date: '$timestamp' } };
+        let logs = getMemoryLogs();
 
-        const match = {};
-        if (projectId) match.projectId = projectId;
+        if (projectId) {
+            logs = logs.filter(log => log.projectId === projectId);
+        }
 
-        const timeseries = await Log.aggregate([
-            { $match: match },
-            {
-                $group: {
-                    _id: groupBy,
-                    calls: { $sum: 1 },
-                    tokens: { $sum: '$totalTokens' },
-                    cost: { $sum: '$cost' },
-                }
-            },
-            { $sort: { _id: 1 } },
-            { $limit: 100 }
-        ]);
+        const timeseries = {};
 
-        res.json(timeseries);
+        logs.forEach(log => {
+            const date = new Date(log.timestamp);
+            let key;
+
+            if (interval === 'hour') {
+                key = `${date.getHours()}:00`;
+            } else if (interval === 'day') {
+                key = date.toISOString().split('T')[0];
+            } else {
+                key = date.toISOString();
+            }
+
+            if (!timeseries[key]) {
+                timeseries[key] = {
+                    _id: key,
+                    calls: 0,
+                    tokens: 0,
+                    cost: 0
+                };
+            }
+
+            timeseries[key].calls++;
+            timeseries[key].tokens += log.totalTokens || 0;
+            timeseries[key].cost += log.cost || 0;
+        });
+
+        const result = Object.values(timeseries)
+            .sort((a, b) => a._id.localeCompare(b._id))
+            .slice(-100); // Son 100 veri noktası
+
+        res.json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

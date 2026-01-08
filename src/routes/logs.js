@@ -1,13 +1,34 @@
 import express from 'express';
-import { Log } from '../models/Log.js';
 
 const router = express.Router();
+
+// In-memory log storage (MongoDB yerine) - Global yapıyoruz
+global.memoryLogs = global.memoryLogs || [];
+const memoryLogs = global.memoryLogs;
 
 // Yeni log kaydet (SDK'dan gelecek)
 router.post('/', async (req, res) => {
     try {
-        const log = new Log(req.body);
-        await log.save();
+        const log = {
+            ...req.body,
+            _id: req.body.id,
+            createdAt: new Date(),
+            updatedAt: new Date()
+        };
+
+        memoryLogs.unshift(log); // En yeni başa ekle
+
+        // Max 1000 log tut (memory overflow önleme)
+        if (memoryLogs.length > 1000) {
+            memoryLogs.pop();
+        }
+
+        console.log('✅ Log saved to memory:', {
+            provider: log.provider,
+            model: log.model,
+            tokens: log.totalTokens,
+            duration: log.duration + 'ms'
+        });
 
         // Real-time broadcast (websocket varsa)
         if (global.io) {
@@ -35,26 +56,38 @@ router.get('/', async (req, res) => {
             skip = 0,
         } = req.query;
 
-        const filter = {};
-        if (projectId) filter.projectId = projectId;
-        if (provider) filter.provider = provider;
-        if (model) filter.model = model;
-        if (status) filter.status = status;
+        let filteredLogs = [...memoryLogs];
+
+        // Filtreleme
+        if (projectId) {
+            filteredLogs = filteredLogs.filter(log => log.projectId === projectId);
+        }
+        if (provider) {
+            filteredLogs = filteredLogs.filter(log => log.provider === provider);
+        }
+        if (model) {
+            filteredLogs = filteredLogs.filter(log => log.model === model);
+        }
+        if (status) {
+            filteredLogs = filteredLogs.filter(log => log.status === status);
+        }
         if (startDate || endDate) {
-            filter.timestamp = {};
-            if (startDate) filter.timestamp.$gte = new Date(startDate);
-            if (endDate) filter.timestamp.$lte = new Date(endDate);
+            filteredLogs = filteredLogs.filter(log => {
+                const logDate = new Date(log.timestamp);
+                if (startDate && logDate < new Date(startDate)) return false;
+                if (endDate && logDate > new Date(endDate)) return false;
+                return true;
+            });
         }
 
-        const logs = await Log.find(filter)
-            .sort({ timestamp: -1 })
-            .limit(parseInt(limit))
-            .skip(parseInt(skip));
-
-        const total = await Log.countDocuments(filter);
+        const total = filteredLogs.length;
+        const paginatedLogs = filteredLogs.slice(
+            parseInt(skip),
+            parseInt(skip) + parseInt(limit)
+        );
 
         res.json({
-            logs,
+            logs: paginatedLogs,
             total,
             limit: parseInt(limit),
             skip: parseInt(skip),
@@ -67,7 +100,7 @@ router.get('/', async (req, res) => {
 // Tek bir log'u ID ile getir
 router.get('/:id', async (req, res) => {
     try {
-        const log = await Log.findOne({ id: req.params.id });
+        const log = memoryLogs.find(log => log.id === req.params.id);
         if (!log) {
             return res.status(404).json({ error: 'Log not found' });
         }
