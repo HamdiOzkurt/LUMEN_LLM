@@ -11,6 +11,8 @@ import Logs from "./pages/Logs";
 import Models from "./pages/Models";
 import Projects from "./pages/Projects";
 import Analytics from "./pages/Analytics";
+import Dashboard from "./pages/Dashboard";
+import Requests from "./pages/Requests";
 import Settings from "./pages/Settings";
 import Team from "./pages/Team";
 import ApiKeys from "./pages/ApiKeys";
@@ -27,6 +29,8 @@ function Router() {
   return (
     <Switch>
       <Route path={"/enterprise-dashboard"} component={EnterpriseDashboard} />
+      <Route path={"/dashboard"} component={Dashboard} />
+      <Route path={"/requests"} component={Requests} />
 
       {/* New Enterprise Routes */}
       <Route path={"/logs"} component={Logs} />

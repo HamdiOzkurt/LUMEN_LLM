@@ -35,6 +35,8 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
       title: "Main",
       items: [
         { id: "overview", label: "Overview", icon: BarChart3, path: "/enterprise-dashboard" },
+        { id: "dashboard", label: "Dashboard", icon: TrendingUp, path: "/dashboard" },
+        { id: "requests", label: "Requests", icon: Terminal, path: "/requests" },
         { id: "analytics", label: "Analytics", icon: TrendingUp, path: "/analytics" },
         { id: "logs", label: "Real-time Logs", icon: Terminal, path: "/logs" },
       ]
