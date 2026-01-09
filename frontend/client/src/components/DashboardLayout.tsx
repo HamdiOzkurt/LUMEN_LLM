@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 
 interface DashboardLayoutProps {
     children: ReactNode;
+    isFullWidth?: boolean;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, isFullWidth = false }: DashboardLayoutProps) {
     const { theme, toggleTheme } = useTheme();
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [location] = useLocation();
@@ -64,8 +65,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </header>
 
                 {/* Dynamic Page Content */}
-                <main className="flex-1 p-8 overflow-x-hidden">
-                    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <main className={`flex-1 overflow-x-hidden ${isFullWidth ? 'p-0' : 'p-8'}`}>
+                    <div className={`${isFullWidth ? 'h-full w-full' : 'max-w-7xl mx-auto space-y-8'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
                         {children}
                     </div>
                 </main>

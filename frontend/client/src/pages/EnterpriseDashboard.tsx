@@ -1,353 +1,247 @@
 ﻿import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { formatCost, formatNumber, formatLatency } from "@/lib/formatters";
+import { formatNumber } from "@/lib/formatters";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, Cell
+  AreaChart, Area, XAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, LineChart, Line, Legend, BarChart, Bar
 } from 'recharts';
-import { MoreHorizontal, ArrowUpRight } from "lucide-react";
+import { Zap, Activity, Clock, CheckCircle } from "lucide-react";
 
 // API Configuration
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// Custom Colors (Refined Palette)
-const COLORS = {
-  GREEN: '#22c55e',  // Requests
-  PURPLE: '#d946ef', // Errors
-  BLUE: '#3b82f6',   // Costs
-  ORANGE: '#f97316', // Users
-  CYAN: '#06b6d4',   // Latency
-  RED: '#ef4444'
+const initialMetrics = {
+  totalCost: 0,
+  totalTokens: 0,
+  avgLatency: 0,
+  successRate: 100
 };
 
 export default function EnterpriseDashboard() {
   const [loading, setLoading] = useState(true);
-
-  // State - Data is now structured exactly as the backend returns it
-  const [metrics, setMetrics] = useState<any>({
-    avgCost: 0,
-    avgPrompt: 0,
-    avgComp: 0,
-    avgTotal: 0,
-    totalRequests: 0,
-    totalCost: 0,
-    users: 0,
-    avgLatency: 0
-  });
-
+  const [metrics, setMetrics] = useState<any>(initialMetrics);
   const [trendData, setTrendData] = useState<any[]>([]);
-
-  const [stats, setStats] = useState<any>({
-    errorStats: [],
-    providerStats: [],
-    modelStats: [],
-    costModelStats: []
-  });
+  const [providerData, setProviderData] = useState<any[]>([]);
+  const [modelCostData, setModelCostData] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch pre-calculated dashboard data from backend
         const res = await fetch(`${API_BASE}/api/metrics/dashboard`);
         const data = await res.json();
 
         if (data && data.metrics) {
-          setMetrics(data.metrics);
-          setTrendData(data.trendData || []);
-          setStats(data.stats || {
-            errorStats: [],
-            providerStats: [],
-            modelStats: [],
-            costModelStats: []
+          setMetrics({
+            totalCost: data.metrics.totalCost || 0,
+            totalTokens: data.metrics.totalRequests ? (data.metrics.avgTotal * data.metrics.totalRequests) : 0,
+            avgLatency: data.metrics.avgLatency || 0,
+            successRate: 100 // Backend currently doesn't return this in 'metrics', usually calculated from errors
           });
+
+          // 1. Trend Data (Daily Requests & Latency)
+          if (data.trendData) {
+            // Backend returns date as DD/MM/YYYY, let's keep it or format nicely
+            const mappedTrend = data.trendData.map((d: any) => ({
+              time: d.date.split('/').slice(0, 2).join('/'), // Show DD/MM
+              requests: d.requests,
+              avgLatency: Math.round(d.avgLatency || 0),
+              cost: d.cost
+            }));
+            setTrendData(mappedTrend);
+          }
+
+          // 2. Provider Data (For Pie Chart)
+          if (data.stats && data.stats.providerStats) {
+            const COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
+            const mappedProviders = data.stats.providerStats.map((p: any, index: number) => ({
+              name: p.name,
+              value: p.value,
+              color: COLORS[index % COLORS.length]
+            }));
+            setProviderData(mappedProviders);
+          }
+
+          // 3. Model Cost Data (For Bar Chart - replacing errors for now as we have real data for this)
+          if (data.stats && data.stats.costModelStats) {
+            const mappedModelCosts = data.stats.costModelStats.map((m: any) => ({
+              name: m.name,
+              value: m.value
+            }));
+            setModelCostData(mappedModelCosts);
+          }
         }
-
         setLoading(false);
-
       } catch (error) {
-        console.error("Dashboard Fetch Error:", error);
+        console.error("Error fetching dashboard data:", error);
         setLoading(false);
       }
     };
+
     fetchData();
-    const interval = setInterval(fetchData, 10000); // 10s refresh
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  const tooltipStyle = { backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '6px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' };
+  const tooltipStyle = {
+    backgroundColor: '#11131f',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderRadius: '8px',
+    color: '#f3f4f6',
+    fontSize: '12px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+  };
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-[calc(100vh-100px)] text-muted-foreground animate-pulse">
-          Loading dashboard data...
-        </div>
-      </DashboardLayout>
-    );
-  }
+  if (loading) return <DashboardLayout><div className="flex h-[80vh] items-center justify-center text-gray-500">Loading metrics...</div></DashboardLayout>;
 
   return (
     <DashboardLayout>
-      <div className="space-y-8 pb-10">
+      <div className="space-y-6">
 
-        {/* 1. METRICS STRIP */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pb-6 border-b border-white/5">
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
-              Avg Cost / Req
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-tight">LLM Observability Dashboard</h1>
+          <p className="text-gray-500 text-sm mt-1">Real-time insights into your LLM infrastructure performance and costs.</p>
+        </div>
+
+        {/* 1. HERO CARDS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+          {/* COST */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 h-[140px] relative overflow-hidden flex flex-col justify-between group hover:border-blue-500/20 transition-all">
+            <div className="absolute top-3 right-3 text-blue-500/10 group-hover:text-blue-500/20 transition-colors">
+              <Zap className="w-16 h-16" />
             </div>
-            <div className="text-2xl font-mono font-medium text-foreground">{formatCost(metrics.avgCost)}</div>
+            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest z-10">TOTAL COST</div>
+            <div className="z-10">
+              <div className="text-4xl font-bold text-white tracking-tight">${metrics.totalCost?.toFixed(4)}</div>
+            </div>
           </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
-              Avg Prompt Tokens
+
+          {/* TOKENS */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 h-[140px] relative overflow-hidden flex flex-col justify-between group hover:border-cyan-500/20 transition-all">
+            <div className="absolute top-3 right-3 text-cyan-500/10 group-hover:text-cyan-500/20 transition-colors">
+              <Activity className="w-16 h-16" />
             </div>
-            <div className="text-2xl font-mono font-medium text-foreground">{metrics.avgPrompt.toFixed(1)}</div>
+            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest z-10">TOTAL TOKENS</div>
+            <div className="z-10">
+              <div className="text-4xl font-bold text-white tracking-tight">{formatNumber(metrics.totalTokens)}</div>
+            </div>
           </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
-              Avg Compl. Tokens
+
+          {/* LATENCY */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 h-[140px] relative overflow-hidden flex flex-col justify-between group hover:border-green-500/20 transition-all">
+            <div className="absolute top-3 right-3 text-green-500/10 group-hover:text-green-500/20 transition-colors">
+              <Clock className="w-16 h-16" />
             </div>
-            <div className="text-2xl font-mono font-medium text-foreground">{metrics.avgComp.toFixed(1)}</div>
+            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest z-10">AVG LATENCY</div>
+            <div className="z-10">
+              <div className="text-4xl font-bold text-white tracking-tight">{Math.round(metrics.avgLatency)}ms</div>
+            </div>
           </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
-              Avg Total Tokens
+
+          {/* SUCCESS */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 h-[140px] relative overflow-hidden flex flex-col justify-between group hover:border-yellow-500/20 transition-all">
+            <div className="absolute top-3 right-3 text-yellow-500/10 group-hover:text-yellow-500/20 transition-colors">
+              <CheckCircle className="w-16 h-16" />
             </div>
-            <div className="text-2xl font-mono font-medium text-foreground">{metrics.avgTotal.toFixed(1)}</div>
+            <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest z-10">SUCCESS RATE</div>
+            <div className="z-10">
+              <div className="text-4xl font-bold text-white tracking-tight">{metrics.successRate}%</div>
+            </div>
           </div>
         </div>
 
-        {/* 2. ROW 1: REQUESTS TREND + STATS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* REQUESTS CHART (Expanded Area) */}
-          <div className="lg:col-span-2 glassmorphic p-6 rounded-2xl border border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent min-h-[300px] flex flex-col">
-            <div className="flex justify-between items-start mb-6">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Total Requests</h3>
-                <div className="text-3xl font-bold mt-1 text-green-400">{formatNumber(metrics.totalRequests)}</div>
-              </div>
-              <div className="p-2 bg-green-400/10 rounded-lg">
-                <ArrowUpRight className="w-5 h-5 text-green-400" />
-              </div>
+        {/* 2. CHARTS UPPER ROW */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[380px]">
+          {/* DAILY REQUEST VOLUME */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 flex flex-col">
+            <div className="flex items-center mb-6">
+              <div className="w-1 h-4 bg-[#6366f1] rounded-full mr-3 shadow-[0_0_8px_#6366f1]"></div>
+              <h3 className="text-sm font-semibold text-gray-200">Daily Request Volume (Last 14 Days)</h3>
             </div>
-            <div className="flex-1 w-full min-h-[200px]">
+            <div className="flex-1 w-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
+                <AreaChart data={trendData}>
                   <defs>
-                    <linearGradient id="colorReqs" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS.GREEN} stopOpacity={0.4} />
-                      <stop offset="95%" stopColor={COLORS.GREEN} stopOpacity={0} />
+                    <linearGradient id="gPurple" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis dataKey="date" hide />
-                  <Area
-                    type="monotone"
-                    dataKey="requests"
-                    stroke={COLORS.GREEN}
-                    strokeWidth={3}
-                    fill="url(#colorReqs)"
-                    activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                  <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} dy={10} />
+                  <RechartsTooltip contentStyle={tooltipStyle} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
+                  <Area type="monotone" dataKey="requests" stroke="#6366f1" strokeWidth={3} fill="url(#gPurple)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* PROVIDER DISTRIBUTION */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 flex flex-col">
+            <div className="flex items-center mb-6">
+              <div className="w-1 h-4 bg-[#06b6d4] rounded-full mr-3 shadow-[0_0_8px_#06b6d4]"></div>
+              <h3 className="text-sm font-semibold text-gray-200">Requests by Provider</h3>
+            </div>
+            <div className="flex-1 w-full min-h-0 relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={providerData} innerRadius={80} outerRadius={105} paddingAngle={4} dataKey="value" stroke="none">
+                    {providerData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                  </Pie>
+                  <Legend
+                    layout="vertical" verticalAlign="middle" align="right" iconType="circle" iconSize={8}
+                    formatter={(val) => <span className="text-gray-400 text-xs ml-2">{val}</span>}
                   />
-                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
-                </AreaChart>
+                  <RechartsTooltip contentStyle={tooltipStyle} />
+                </PieChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* SIDE STATS: Errors & Providers */}
-          <div className="flex flex-col gap-6 min-h-[300px]">
-
-            {/* Errors */}
-            <div className="flex-1 glassmorphic p-5 rounded-2xl border border-white/5 flex flex-col justify-center">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">All Errors</h3>
-                <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
-              </div>
-              <div className="text-2xl font-bold mb-4">
-                {formatNumber(stats.errorStats.reduce((a: any, b: any) => a + b.value, 0))} <span className="text-xs font-medium text-muted-foreground">events</span>
-              </div>
-              <div className="space-y-4 flex-1">
-                {stats.errorStats.length === 0 && <div className="text-xs text-muted-foreground py-2">No errors detected.</div>}
-                {stats.errorStats.map((err: any, i: number) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground">
-                      <span>{err.name}</span>
-                      <span>{err.percent.toFixed(1)}%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${err.percent}%`,
-                          backgroundColor: i === 0 ? COLORS.PURPLE : COLORS.BLUE
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top Providers */}
-            <div className="flex-1 glassmorphic p-5 rounded-2xl border border-white/5 flex flex-col justify-center">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Top Providers</h3>
-                <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
-              </div>
-              <div className="space-y-3">
-                {stats.providerStats.map((p: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center text-xs group">
-                    <span className="capitalize text-foreground font-medium flex items-center gap-2 group-hover:text-white transition-colors">
-                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-                      {p.name}
-                    </span>
-                    <span className="font-mono text-muted-foreground bg-white/5 px-2 py-0.5 rounded">{p.value} requests</span>
-                  </div>
-                ))}
-                {stats.providerStats.length === 0 && <div className="text-xs text-muted-foreground">No data available.</div>}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <Activity className="w-8 h-8 text-white/5" />
               </div>
             </div>
           </div>
         </div>
 
-        {/* 3. ROW 2: COST & USERS & MODELS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* COSTS Chart */}
-          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[280px]">
-            <div className="mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Total Cost</div>
-              <div className="text-2xl font-bold text-blue-400">{formatCost(metrics.totalCost)}</div>
+        {/* 3. CHARTS LOWER ROW */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[320px]">
+          {/* AVG LATENCY TREND */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 flex flex-col">
+            <div className="flex items-center mb-6">
+              <div className="w-1 h-4 bg-[#10b981] rounded-full mr-3 shadow-[0_0_8px_#10b981]"></div>
+              <h3 className="text-sm font-semibold text-gray-200">Average Latency Trend (ms)</h3>
             </div>
-            <div className="flex-1 w-full min-h-[150px]">
+            <div className="flex-1 w-full min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
-                  <Bar dataKey="cost" fill={COLORS.BLUE} radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                  <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} dy={10} />
+                  <RechartsTooltip contentStyle={tooltipStyle} />
+                  <Line type="monotone" dataKey="avgLatency" name="Avg Latency" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* COST BY MODEL */}
+          <div className="bg-[#11131f] rounded-xl border border-white/5 p-6 flex flex-col">
+            <div className="flex items-center mb-6">
+              <div className="w-1 h-4 bg-[#ef4444] rounded-full mr-3 shadow-[0_0_8px_#ef4444]"></div>
+              <h3 className="text-sm font-semibold text-gray-200">Total Cost by Model</h3>
+            </div>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={modelCostData} barGap={8}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 10 }} dy={10} />
+                  <RechartsTooltip
+                    contentStyle={tooltipStyle}
+                    cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+                    formatter={(val: number) => [`$${val.toFixed(4)}`, 'Cost']}
+                  />
+                  <Bar dataKey="value" name="Cost ($)" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={40} />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* USERS Chart */}
-          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[280px]">
-            <div className="mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Active Projects</div>
-              <div className="text-2xl font-bold text-orange-400">{formatNumber(metrics.users)}</div>
-            </div>
-            <div className="flex-1 w-full min-h-[150px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
-                  <Bar dataKey="users" fill={COLORS.ORANGE} radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Top Models Bars */}
-          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col min-h-[280px]">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Top Models (Vol)</h3>
-              <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
-            </div>
-            <div className="space-y-4 flex-1 overflow-auto custom-scrollbar">
-              {stats.modelStats.map((m: any, i: number) => (
-                <div key={i} className="group">
-                  <div className="flex justify-between text-[11px] mb-1.5 font-medium">
-                    <span className="text-foreground group-hover:text-white transition-colors">{m.name}</span>
-                    <span className="text-muted-foreground font-mono">{m.value} reqs</span>
-                  </div>
-                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden relative">
-                    <div
-                      className="h-full absolute left-0 top-0 transition-all duration-500 rounded-full"
-                      style={{
-                        width: `${(m.value / (stats.modelStats[0]?.value || 1)) * 100}%`,
-                        backgroundColor: i === 0 ? '#f9a8d4' : i === 1 ? '#a5b4fc' : '#fde047',
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* 4. ROW 3: LATENCY & TTFT & COST MODELS */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* Latency Area */}
-          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[250px]">
-            <div className="mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Latency Trend</div>
-              <div className="text-2xl font-bold text-cyan-400">{formatLatency(metrics.avgLatency || 0)} <span className="text-sm font-normal text-muted-foreground">/ req</span></div>
-            </div>
-            <div className="flex-1 w-full min-h-[120px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="colorLat" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS.CYAN} stopOpacity={0.4} />
-                      <stop offset="95%" stopColor={COLORS.CYAN} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="avgLatency" stroke={COLORS.CYAN} strokeWidth={2} fill="url(#colorLat)" />
-                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Time to First Token (TTFT) - Mock Data based on Latency */}
-          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[250px]">
-            <div className="mb-4">
-              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Time to First Token</div>
-              <div className="text-2xl font-bold text-purple-400">
-                Average: {metrics.avgLatency ? (metrics.avgLatency * 0.3).toFixed(0) : 0} ms
-              </div>
-            </div>
-            <div className="flex-1 w-full min-h-[120px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="colorTTFT" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={COLORS.PURPLE} stopOpacity={0.4} />
-                      <stop offset="95%" stopColor={COLORS.PURPLE} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="avgLatency" stroke={COLORS.PURPLE} strokeWidth={2} fill="url(#colorTTFT)" />
-                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Cost by Models List */}
-          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col min-h-[250px]">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Top Models (Cost)</h3>
-              <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
-            </div>
-            <div className="space-y-4 flex-1 overflow-auto custom-scrollbar">
-              {stats.costModelStats.map((m: any, i: number) => (
-                <div key={i} className="group">
-                  <div className="flex justify-between text-[11px] mb-1.5 font-medium">
-                    <span className="text-foreground group-hover:text-white transition-colors">{m.name}</span>
-                    <span className="text-muted-foreground font-mono">{formatCost(m.value)}</span>
-                  </div>
-                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden relative">
-                    <div
-                      className="h-full absolute left-0 top-0 transition-all duration-500 rounded-full bg-cyan-500/50"
-                      style={{
-                        width: `${(m.value / (stats.costModelStats[0]?.value || 1)) * 100}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
