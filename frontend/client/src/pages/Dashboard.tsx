@@ -8,17 +8,18 @@ import {
     Area,
     BarChart,
     Bar,
-    PieChart,
-    Pie,
-    Cell,
+    HistogramChart,
+    Histogram,
+    ComposedChart,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     Legend,
     ResponsiveContainer,
+    Cell,
 } from "recharts";
-import { TrendingUp, AlertCircle, Zap, Clock, DollarSign, CheckCircle2, Activity } from "lucide-react";
+import { TrendingUp, AlertCircle, Zap, Clock, DollarSign, CheckCircle2, Activity, Filter, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // API Configuration
@@ -30,10 +31,18 @@ const MODEL_COLORS: Record<string, string> = {
     'ollama-llama3': '#06b6d4',
     'gpt-4': '#10b981',
     'claude-3-opus': '#f43f5e',
+    'o1': '#f59e0b',
+    'deepseek': '#ec4899',
     'default': '#64748b'
 };
 
-const CHART_COLORS = ['#8b5cf6', '#06b6d4', '#10b981', '#f43f5e', '#f59e0b', '#ec4899'];
+const PROVIDER_COLORS: Record<string, string> = {
+    'openai': '#10b981',
+    'anthropic': '#f59e0b',
+    'google': '#3b82f6',
+    'ollama': '#06b6d4',
+    'default': '#64748b'
+};
 
 interface MetricCard {
     label: string;
@@ -43,13 +52,40 @@ interface MetricCard {
     color: string;
 }
 
+interface DashboardMetrics {
+    totalRequests: number;
+    totalCost: number;
+    avgLatency: number;
+    avgTTFT: number;
+    successRate: number;
+    totalTokens: number;
+    totalPromptTokens: number;
+    totalCompletionTokens: number;
+    totalReasoningTokens: number;
+}
+
 export default function Dashboard() {
     const [loading, setLoading] = useState(true);
-    const [metrics, setMetrics] = useState<any>({});
-    const [modelTrends, setModelTrends] = useState<any[]>([]);
-    const [modelDistribution, setModelDistribution] = useState<any[]>([]);
-    const [costTrends, setCostTrends] = useState<any[]>([]);
-    const [latencyData, setLatencyData] = useState<any[]>([]);
+    const [metrics, setMetrics] = useState<DashboardMetrics>({
+        totalRequests: 0,
+        totalCost: 0,
+        avgLatency: 0,
+        avgTTFT: 0,
+        successRate: 0,
+        totalTokens: 0,
+        totalPromptTokens: 0,
+        totalCompletionTokens: 0,
+        totalReasoningTokens: 0,
+    });
+
+    const [requestTrends, setRequestTrends] = useState<any[]>([]);
+    const [ttftDistribution, setTTFTDistribution] = useState<any[]>([]);
+    const [tokenBreakdown, setTokenBreakdown] = useState<any[]>([]);
+    const [providerMetrics, setProviderMetrics] = useState<any[]>([]);
+
+    // Filters
+    const [dateRange, setDateRange] = useState<'24h' | '7d' | '30d'>('24h');
+    const [selectedProvider, setSelectedProvider] = useState<string>('all');
 
     const searchParams = new URLSearchParams(window.location.search);
     const projectId = searchParams.get("projectId");
@@ -58,90 +94,110 @@ export default function Dashboard() {
         const fetchData = async () => {
             try {
                 const query = projectId ? `&projectId=${projectId}` : '';
+                const hoursMap = { '24h': 24, '7d': 168, '30d': 720 };
+                const hours = hoursMap[dateRange];
 
-                // Fetch all data in parallel
-                const [trendsRes, perfRes, logsRes] = await Promise.all([
-                    fetch(`${API_BASE}/api/metrics/timeseries-by-model?hours=24${query}`),
-                    fetch(`${API_BASE}/api/metrics/by-provider?${projectId ? `projectId=${projectId}` : ''}`),
-                    fetch(`${API_BASE}/api/logs?limit=1000${query}`)
+                const [trendsRes, logsRes, perfRes] = await Promise.all([
+                    fetch(`${API_BASE}/api/metrics/timeseries-by-model?hours=${hours}${query}`),
+                    fetch(`${API_BASE}/api/logs?limit=2000${query}`),
+                    fetch(`${API_BASE}/api/metrics/by-provider?${projectId ? `projectId=${projectId}` : ''}`)
                 ]);
 
                 const trendsData = await trendsRes.json();
-                const perfData = await perfRes.json();
                 const logsData = await logsRes.json();
+                const perfData = await perfRes.json();
 
-                // Process trends
-                setModelTrends(trendsData);
-
-                // Process cost trends (same data, different format)
-                const costData = trendsData.map((d: any) => ({
-                    name: d.name,
-                    cost: Object.keys(d).reduce((sum: number, k: string) => {
-                        if (k !== 'name' && typeof d[k] === 'number') {
-                            return sum + (d[k] * 0.001); // Mock cost calculation
-                        }
-                        return sum;
-                    }, 0)
-                }));
-                setCostTrends(costData);
-
-                // Process model distribution
                 const logs = logsData.logs || [];
-                const modelCounts: Record<string, number> = {};
+
+                // Calculate metrics
+                let totalCost = 0;
                 let totalLatency = 0;
+                let totalTTFT = 0;
                 let successCount = 0;
-                let errorCount = 0;
+                let totalPromptTokens = 0;
+                let totalCompletionTokens = 0;
+                let totalReasoningTokens = 0;
 
-                logs.forEach((log: any) => {
-                    modelCounts[log.model] = (modelCounts[log.model] || 0) + 1;
-                    totalLatency += log.duration || 0;
-                    if (log.status === 'success') successCount++;
-                    else errorCount++;
-                });
-
-                const distribution = Object.entries(modelCounts).map(([model, count]) => ({
-                    name: model,
-                    value: count,
-                    color: MODEL_COLORS[model] || MODEL_COLORS['default']
-                }));
-                setModelDistribution(distribution);
-
-                // Process latency distribution
-                const latencyBuckets: Record<string, number> = {
-                    '0-100ms': 0,
+                const ttftBuckets: Record<string, number> = {
+                    '0-50ms': 0,
+                    '50-100ms': 0,
                     '100-500ms': 0,
                     '500-1s': 0,
                     '1s+': 0
                 };
 
+                const providerMap: Record<string, any> = {};
+
                 logs.forEach((log: any) => {
-                    const latency = log.duration || 0;
-                    if (latency < 100) latencyBuckets['0-100ms']++;
-                    else if (latency < 500) latencyBuckets['100-500ms']++;
-                    else if (latency < 1000) latencyBuckets['500-1s']++;
-                    else latencyBuckets['1s+']++;
+                    totalCost += log.cost || 0;
+                    totalLatency += log.duration || 0;
+                    totalTTFT += log.ttft || log.duration || 0;
+                    totalPromptTokens += log.promptTokens || 0;
+                    totalCompletionTokens += log.completionTokens || 0;
+                    totalReasoningTokens += log.reasoningTokens || 0;
+
+                    if (log.status === 'success') successCount++;
+
+                    // TTFT Distribution
+                    const ttft = log.ttft || log.duration || 0;
+                    if (ttft < 50) ttftBuckets['0-50ms']++;
+                    else if (ttft < 100) ttftBuckets['50-100ms']++;
+                    else if (ttft < 500) ttftBuckets['100-500ms']++;
+                    else if (ttft < 1000) ttftBuckets['500-1s']++;
+                    else ttftBuckets['1s+']++;
+
+                    // Provider metrics
+                    if (!providerMap[log.provider]) {
+                        providerMap[log.provider] = { calls: 0, cost: 0, latency: 0 };
+                    }
+                    providerMap[log.provider].calls++;
+                    providerMap[log.provider].cost += log.cost || 0;
+                    providerMap[log.provider].latency += log.duration || 0;
                 });
 
-                const latencyChartData = Object.entries(latencyBuckets).map(([range, count]) => ({
-                    name: range,
-                    count
-                }));
-                setLatencyData(latencyChartData);
-
-                // Calculate metrics
                 const totalRequests = logs.length;
-                const totalCost = logs.reduce((sum: number, log: any) => sum + (log.cost || 0), 0);
-                const avgLatency = totalRequests > 0 ? totalLatency / totalRequests : 0;
-                const successRate = totalRequests > 0 ? ((successCount / totalRequests) * 100).toFixed(1) : 0;
+                const totalTokens = totalPromptTokens + totalCompletionTokens + totalReasoningTokens;
 
                 setMetrics({
                     totalRequests,
                     totalCost,
-                    avgLatency,
-                    successRate,
-                    errorCount,
-                    successCount
+                    avgLatency: totalRequests > 0 ? totalLatency / totalRequests : 0,
+                    avgTTFT: totalRequests > 0 ? totalTTFT / totalRequests : 0,
+                    successRate: totalRequests > 0 ? ((successCount / totalRequests) * 100) : 0,
+                    totalTokens,
+                    totalPromptTokens,
+                    totalCompletionTokens,
+                    totalReasoningTokens,
                 });
+
+                // TTFT Distribution Chart
+                const ttftChartData = Object.entries(ttftBuckets).map(([range, count]) => ({
+                    name: range,
+                    count,
+                    fill: '#06b6d4'
+                }));
+                setTTFTDistribution(ttftChartData);
+
+                // Token Breakdown
+                const tokenData = [
+                    { name: 'Prompt', value: totalPromptTokens, fill: '#8b5cf6' },
+                    { name: 'Completion', value: totalCompletionTokens, fill: '#10b981' },
+                    { name: 'Reasoning', value: totalReasoningTokens, fill: '#f59e0b' }
+                ];
+                setTokenBreakdown(tokenData);
+
+                // Provider Metrics
+                const providerData = Object.entries(providerMap).map(([provider, data]: [string, any]) => ({
+                    name: provider,
+                    calls: data.calls,
+                    cost: data.cost,
+                    avgLatency: data.latency / data.calls,
+                    fill: PROVIDER_COLORS[provider] || PROVIDER_COLORS['default']
+                }));
+                setProviderMetrics(providerData);
+
+                // Request trends
+                setRequestTrends(trendsData);
 
                 setLoading(false);
             } catch (error) {
@@ -153,55 +209,84 @@ export default function Dashboard() {
         fetchData();
         const interval = setInterval(fetchData, 30000);
         return () => clearInterval(interval);
-    }, [projectId]);
+    }, [projectId, dateRange]);
 
     const metricCards: MetricCard[] = [
         {
             label: "Total Requests",
-            value: metrics.totalRequests || 0,
+            value: metrics.totalRequests,
             icon: <Activity className="w-5 h-5" />,
             color: "from-blue-500 to-blue-600"
         },
         {
             label: "Total Cost",
-            value: `$${(metrics.totalCost || 0).toFixed(4)}`,
+            value: `$${metrics.totalCost.toFixed(4)}`,
             icon: <DollarSign className="w-5 h-5" />,
             color: "from-emerald-500 to-emerald-600"
         },
         {
             label: "Avg Latency",
-            value: `${formatLatency(metrics.avgLatency || 0)}`,
+            value: `${formatLatency(metrics.avgLatency)}`,
             icon: <Clock className="w-5 h-5" />,
             color: "from-purple-500 to-purple-600"
         },
         {
-            label: "Success Rate",
-            value: `${metrics.successRate || 0}%`,
-            icon: <CheckCircle2 className="w-5 h-5" />,
-            color: "from-green-500 to-green-600"
+            label: "Avg TTFT",
+            value: `${formatLatency(metrics.avgTTFT)}`,
+            icon: <Zap className="w-5 h-5" />,
+            color: "from-orange-500 to-orange-600"
         },
         {
-            label: "Errors",
-            value: metrics.errorCount || 0,
-            icon: <AlertCircle className="w-5 h-5" />,
-            color: "from-red-500 to-red-600"
+            label: "Success Rate",
+            value: `${metrics.successRate.toFixed(1)}%`,
+            icon: <CheckCircle2 className="w-5 h-5" />,
+            color: "from-green-500 to-green-600"
         }
     ];
 
     return (
         <DashboardLayout>
             {/* Header */}
-            <div>
-                <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                    <TrendingUp className="w-8 h-8 text-indigo-500" />
-                    Dashboard {projectId && <span className="text-xl font-normal text-muted-foreground ml-2">/ {projectId}</span>}
-                </h1>
-                <p className="text-muted-foreground mt-1">
-                    {projectId
-                        ? `Real-time metrics and analytics for project: ${projectId}`
-                        : "Real-time performance metrics and usage analytics across all models."
-                    }
-                </p>
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
+                        <TrendingUp className="w-8 h-8 text-primary" />
+                        Dashboard
+                    </h1>
+                    <p className="text-muted-foreground mt-1">
+                        Real-time metrics and performance analytics
+                    </p>
+                </div>
+
+                {/* Filters */}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-card border border-border rounded-lg p-1">
+                        {(['24h', '7d', '30d'] as const).map((range) => (
+                            <button
+                                key={range}
+                                onClick={() => setDateRange(range)}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${
+                                    dateRange === range
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                            >
+                                {range}
+                            </button>
+                        ))}
+                    </div>
+
+                    <select
+                        value={selectedProvider}
+                        onChange={(e) => setSelectedProvider(e.target.value)}
+                        className="px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+                    >
+                        <option value="all">All Providers</option>
+                        {providerMetrics.map(p => (
+                            <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
             </div>
 
             {loading ? (
@@ -213,54 +298,48 @@ export default function Dashboard() {
                     {/* Metric Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         {metricCards.map((card, idx) => (
-                            <div key={idx} className="glassmorphic p-6 rounded-xl border border-white/10 hover:border-white/20 transition-all">
+                            <div key={idx} className="instrument-card p-6 hover:border-primary/30">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className={`p-2.5 rounded-lg bg-gradient-to-br ${card.color} text-white`}>
                                         {card.icon}
                                     </div>
                                 </div>
-                                <p className="text-sm text-muted-foreground mb-1">{card.label}</p>
-                                <p className="text-2xl font-bold text-foreground">{card.value}</p>
-                                {card.change && (
-                                    <p className={`text-xs mt-2 ${card.change > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                        {card.change > 0 ? '↑' : '↓'} {Math.abs(card.change)}% from last period
-                                    </p>
-                                )}
+                                <p className="text-xs text-muted-foreground mb-1 label-silence">{card.label}</p>
+                                <p className="text-2xl font-bold text-foreground metrics-display">{card.value}</p>
                             </div>
                         ))}
                     </div>
 
                     {/* Charts Row 1 */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Requests Trend */}
-                        <div className="lg:col-span-2 glassmorphic p-6 rounded-xl border border-white/10">
+                        {/* Requests Over Time */}
+                        <div className="lg:col-span-2 instrument-card p-6">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                                     <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
                                     Requests Over Time
                                 </h3>
-                                <Button variant="ghost" size="sm">Last 24h</Button>
                             </div>
                             <div className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <LineChart data={modelTrends} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                        <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
+                                    <LineChart data={requestTrends} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                                        <XAxis dataKey="name" stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
+                                        <YAxis stroke="var(--muted-foreground)" style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
                                         <Tooltip
                                             contentStyle={{
-                                                background: "rgba(10, 10, 12, 0.95)",
-                                                border: "1px solid rgba(255, 255, 255, 0.1)",
-                                                borderRadius: "12px",
+                                                background: "var(--card)",
+                                                border: "1px solid var(--border)",
+                                                borderRadius: "8px",
                                             }}
                                         />
                                         <Legend />
-                                        {Object.keys(modelTrends[0] || {}).filter(k => k !== 'name').map((model, idx) => (
+                                        {Object.keys(requestTrends[0] || {}).filter(k => k !== 'name').map((model, idx) => (
                                             <Line
                                                 key={model}
                                                 type="monotone"
                                                 dataKey={model}
-                                                stroke={CHART_COLORS[idx % CHART_COLORS.length]}
+                                                stroke={Object.values(MODEL_COLORS)[idx % Object.values(MODEL_COLORS).length]}
                                                 strokeWidth={2}
                                                 dot={false}
                                                 connectNulls
@@ -271,92 +350,96 @@ export default function Dashboard() {
                             </div>
                         </div>
 
-                        {/* Model Distribution */}
-                        <div className="glassmorphic p-6 rounded-xl border border-white/10">
+                        {/* Token Breakdown */}
+                        <div className="instrument-card p-6">
                             <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
                                 <span className="w-2 h-6 bg-purple-500 rounded-full"></span>
-                                Model Distribution
+                                Token Breakdown
                             </h3>
-                            <div className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={modelDistribution}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            label={({ name, value }) => `${name}: ${value}`}
-                                            outerRadius={80}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                        >
-                                            {modelDistribution.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                    </PieChart>
-                                </ResponsiveContainer>
+                            <div className="space-y-4">
+                                {tokenBreakdown.map((token, idx) => (
+                                    <div key={idx} className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-muted-foreground">{token.name}</span>
+                                            <span className="font-mono text-sm font-bold text-foreground">{token.value.toLocaleString()}</span>
+                                        </div>
+                                        <div className="w-full bg-secondary rounded-full h-2">
+                                            <div
+                                                className="h-full rounded-full"
+                                                style={{
+                                                    width: `${(token.value / Math.max(...tokenBreakdown.map(t => t.value))) * 100}%`,
+                                                    backgroundColor: token.fill
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                                <div className="pt-4 border-t border-border">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-semibold text-foreground">Total</span>
+                                        <span className="font-mono text-sm font-bold text-primary">{metrics.totalTokens.toLocaleString()}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     {/* Charts Row 2 */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Cost Trend */}
-                        <div className="glassmorphic p-6 rounded-xl border border-white/10">
-                            <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
-                                <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>
-                                Cost Over Time
-                            </h3>
-                            <div className="h-[250px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={costTrends} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorCost" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.8} />
-                                                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                                        <XAxis dataKey="name" stroke="#94a3b8" style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
-                                        <YAxis stroke="#94a3b8" style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
-                                        <Tooltip
-                                            contentStyle={{
-                                                background: "rgba(10, 10, 12, 0.95)",
-                                                border: "1px solid rgba(255, 255, 255, 0.1)",
-                                                borderRadius: "12px",
-                                            }}
-                                        />
-                                        <Area type="monotone" dataKey="cost" stroke="#10b981" fillOpacity={1} fill="url(#colorCost)" />
-                                    </AreaChart>
-                                </ResponsiveContainer>
-                            </div>
-                        </div>
-
-                        {/* Latency Distribution */}
-                        <div className="glassmorphic p-6 rounded-xl border border-white/10">
+                        {/* TTFT Distribution */}
+                        <div className="instrument-card p-6">
                             <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
                                 <span className="w-2 h-6 bg-cyan-500 rounded-full"></span>
-                                Latency Distribution
+                                TTFT Distribution
                             </h3>
                             <div className="h-[250px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={latencyData} layout="vertical" margin={{ left: 80 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={true} vertical={false} />
+                                    <BarChart data={ttftDistribution} layout="vertical" margin={{ left: 80 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={true} vertical={false} />
                                         <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" stroke="#94a3b8" width={70} style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
+                                        <YAxis dataKey="name" type="category" stroke="var(--muted-foreground)" width={70} style={{ fontSize: "12px" }} tickLine={false} axisLine={false} />
                                         <Tooltip
-                                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                            cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
                                             contentStyle={{
-                                                background: "#0f172a",
-                                                border: "1px solid rgba(255,255,255,0.1)",
+                                                background: "var(--card)",
+                                                border: "1px solid var(--border)",
                                                 borderRadius: "8px"
                                             }}
                                         />
                                         <Bar dataKey="count" fill="#06b6d4" radius={[0, 4, 4, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        {/* Provider Performance */}
+                        <div className="instrument-card p-6">
+                            <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
+                                <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>
+                                Provider Performance
+                            </h3>
+                            <div className="space-y-4">
+                                {providerMetrics.map((provider, idx) => (
+                                    <div key={idx} className="p-4 bg-secondary/50 rounded-lg border border-border">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: provider.fill }} />
+                                                <span className="font-semibold text-foreground capitalize">{provider.name}</span>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground">{provider.calls} calls</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div>
+                                                <span className="text-muted-foreground">Cost:</span>
+                                                <span className="ml-2 font-mono font-bold text-foreground">${provider.cost.toFixed(4)}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-muted-foreground">Avg Latency:</span>
+                                                <span className="ml-2 font-mono font-bold text-foreground">{formatLatency(provider.avgLatency)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>

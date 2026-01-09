@@ -34,11 +34,8 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
     {
       title: "Main",
       items: [
-        { id: "overview", label: "Overview", icon: BarChart3, path: "/enterprise-dashboard" },
-        { id: "dashboard", label: "Dashboard", icon: TrendingUp, path: "/dashboard" },
+        { id: "dashboard", label: "Dashboard", icon: BarChart3, path: "/dashboard" },
         { id: "requests", label: "Requests", icon: Terminal, path: "/requests" },
-        { id: "analytics", label: "Analytics", icon: TrendingUp, path: "/analytics" },
-        { id: "logs", label: "Real-time Logs", icon: Terminal, path: "/logs" },
       ]
     },
     {
@@ -52,8 +49,6 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
     {
       title: "System",
       items: [
-        { id: "team", label: "Team Members", icon: Users, path: "/team" },
-        { id: "docs", label: "Documentation", icon: FileText, path: "/docs" },
         { id: "settings", label: "Settings", icon: Settings, path: "/settings" },
       ]
     }

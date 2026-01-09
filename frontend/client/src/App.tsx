@@ -21,26 +21,19 @@ import Docs from "./pages/Docs";
 function Router() {
   const [location, setLocation] = useLocation();
 
-  // Redirect root to Enterprise Dashboard
+  // Redirect root to Dashboard
   if (location === "/") {
-    setLocation("/enterprise-dashboard");
+    setLocation("/dashboard");
   }
 
   return (
     <Switch>
-      <Route path={"/enterprise-dashboard"} component={EnterpriseDashboard} />
       <Route path={"/dashboard"} component={Dashboard} />
       <Route path={"/requests"} component={Requests} />
-
-      {/* New Enterprise Routes */}
-      <Route path={"/logs"} component={Logs} />
       <Route path={"/models"} component={Models} />
       <Route path={"/projects"} component={Projects} />
-      <Route path={"/analytics"} component={Analytics} />
       <Route path={"/settings"} component={Settings} />
-      <Route path={"/team"} component={Team} />
       <Route path={"/keys"} component={ApiKeys} />
-      <Route path={"/docs"} component={Docs} />
 
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
