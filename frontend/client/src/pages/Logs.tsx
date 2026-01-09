@@ -1,19 +1,24 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Terminal, Search, Filter } from "lucide-react";
+import { Terminal, Search, Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { formatCost } from "@/lib/formatters";
 
 // API Configuration
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function Logs() {
     const [logs, setLogs] = useState<any[]>([]);
+    const [filteredLogs, setFilteredLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+    const [showFilters, setShowFilters] = useState(false);
 
     useEffect(() => {
         const fetchLogs = async () => {
             try {
-                // Fetch more logs for the dedicated page (e.g., 50)
                 const res = await fetch(`${API_BASE}/api/logs?limit=50`);
                 const data = await res.json();
                 setLogs(data.logs || []);
@@ -28,6 +33,27 @@ export default function Logs() {
         const interval = setInterval(fetchLogs, 5000);
         return () => clearInterval(interval);
     }, []);
+
+    // Apply filters and search
+    useEffect(() => {
+        let result = [...logs];
+
+        // Provider filter
+        if (selectedProvider) {
+            result = result.filter(log => log.provider === selectedProvider);
+        }
+
+        // Search filter (model name)
+        if (searchQuery) {
+            result = result.filter(log =>
+                log.model?.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+        }
+
+        setFilteredLogs(result);
+    }, [logs, selectedProvider, searchQuery]);
+
+    const providers = Array.from(new Set(logs.map(log => log.provider)));
 
     return (
         <DashboardLayout>
@@ -45,16 +71,68 @@ export default function Logs() {
                         </p>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" className="gap-2">
+                        <Button
+                            variant={showFilters ? "default" : "outline"}
+                            className="gap-2"
+                            onClick={() => setShowFilters(!showFilters)}
+                        >
                             <Filter className="w-4 h-4" />
                             Filter
                         </Button>
-                        <Button variant="outline" className="gap-2">
-                            <Search className="w-4 h-4" />
-                            Search
-                        </Button>
                     </div>
                 </div>
+
+                {/* Filter Panel */}
+                {showFilters && (
+                    <div className="glassmorphic p-4 rounded-xl border border-white/10 flex gap-4 items-center">
+                        <div className="flex-1">
+                            <label className="text-xs text-muted-foreground mb-2 block">Search by Model</label>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                <Input
+                                    placeholder="e.g., gemini-2.5-flash, gpt-4..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="pl-10"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex-1">
+                            <label className="text-xs text-muted-foreground mb-2 block">Filter by Provider</label>
+                            <div className="flex gap-2 flex-wrap">
+                                {providers.map(provider => (
+                                    <Button
+                                        key={provider}
+                                        variant={selectedProvider === provider ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setSelectedProvider(selectedProvider === provider ? null : provider)}
+                                        className="capitalize"
+                                    >
+                                        {provider}
+                                    </Button>
+                                ))}
+                                {selectedProvider && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelectedProvider(null)}
+                                        className="gap-1"
+                                    >
+                                        <X className="w-3 h-3" />
+                                        Clear
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Results Count */}
+                {(searchQuery || selectedProvider) && (
+                    <div className="text-sm text-muted-foreground">
+                        Showing {filteredLogs.length} of {logs.length} logs
+                    </div>
+                )}
 
                 {/* Logs Table Container */}
                 <div className="flex-1 glassmorphic rounded-xl border border-white/10 overflow-hidden flex flex-col shadow-2xl">
@@ -77,19 +155,19 @@ export default function Logs() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
-                                    {logs.length === 0 ? (
+                                    {filteredLogs.length === 0 ? (
                                         <tr>
                                             <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
-                                                No logs found yet. Waiting for requests...
+                                                {logs.length === 0 ? "No logs found yet. Waiting for requests..." : "No logs match your filters."}
                                             </td>
                                         </tr>
                                     ) : (
-                                        logs.map((log: any, idx: number) => (
+                                        filteredLogs.map((log: any, idx: number) => (
                                             <tr key={log._id || idx} className="hover:bg-white/5 transition-colors group cursor-pointer">
                                                 <td className="px-6 py-3">
                                                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${log.status === "failed" || log.statusCode >= 400
-                                                            ? "bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
-                                                            : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
+                                                        ? "bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
+                                                        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
                                                         }`}>
                                                         {log.status === "failed" || log.statusCode >= 400 ? "Failed" : "200 OK"}
                                                     </span>
@@ -108,13 +186,13 @@ export default function Logs() {
                                                     <span className="font-mono text-xs bg-white/5 px-2 py-1 rounded text-foreground/80">{log.model}</span>
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono text-xs text-muted-foreground">
-                                                    {log.prompt_tokens}/{log.completion_tokens}
+                                                    {log.promptTokens || log.prompt_tokens}/{log.completionTokens || log.completion_tokens}
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono text-[#06b6d4]">
                                                     {Math.round(log.duration)}ms
                                                 </td>
                                                 <td className="px-6 py-3 text-right font-mono text-[#6366f1] font-bold">
-                                                    ${(log.cost || 0).toFixed(5)}
+                                                    {formatCost(log.cost || 0)}
                                                 </td>
                                             </tr>
                                         ))

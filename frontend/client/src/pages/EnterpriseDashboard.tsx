@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { formatCost } from "@/lib/formatters";
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   PieChart,
   Pie,
   Cell,
@@ -73,9 +74,10 @@ export default function EnterpriseDashboard() {
     calls: item.calls
   }));
 
-  const costBreakdownData = providerData.map(item => ({
+  const tokenBreakdownData = providerData.map(item => ({
     name: `${item._id.provider}`,
-    value: item.cost || item.tokens,
+    value: item.tokens,
+    cost: item.cost,
     color: "#6366f1"
   })).slice(0, 5);
 
@@ -101,7 +103,7 @@ export default function EnterpriseDashboard() {
           {/* Summary Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { label: "Total Cost", value: `$${stats.totalCost.toFixed(2)}`, trend: "+12%", color: "text-indigo-500", border: "border-indigo-500/20", shadow: "shadow-indigo-500/10" },
+              { label: "Total Cost", value: formatCost(stats.totalCost), trend: "+12%", color: "text-indigo-500", border: "border-indigo-500/20", shadow: "shadow-indigo-500/10" },
               { label: "Total Tokens", value: stats.totalTokens.toLocaleString(), trend: "+5%", color: "text-cyan-500", border: "border-cyan-500/20", shadow: "shadow-cyan-500/10" },
               { label: "Avg. Latency", value: `${Math.round(stats.avgDuration)}ms`, trend: "-8%", color: "text-emerald-500", border: "border-emerald-500/20", shadow: "shadow-emerald-500/10" },
               { label: "Success Rate", value: `${successRate}%`, trend: "+0.2%", color: "text-amber-500", border: "border-amber-500/20", shadow: "shadow-amber-500/10" },
@@ -137,7 +139,7 @@ export default function EnterpriseDashboard() {
               </h3>
               <div className="flex-1 min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={tokenUsageData}>
+                  <BarChart data={tokenUsageData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis
                       dataKey="time"
@@ -164,27 +166,22 @@ export default function EnterpriseDashboard() {
                       }}
                       itemStyle={{ color: "#fff", fontSize: "12px" }}
                       labelStyle={{ color: "#94a3b8", marginBottom: "8px", fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px" }}
-                      cursor={{ stroke: 'rgba(99, 102, 241, 0.5)', strokeWidth: 1 }}
+                      cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
                     />
                     <Legend wrapperStyle={{ paddingTop: "20px" }} />
-                    <Line
-                      type="monotone"
+                    <Bar
                       dataKey="tokens"
-                      stroke="#6366f1"
-                      strokeWidth={3}
-                      dot={{ r: 4, strokeWidth: 0, fill: "#6366f1" }}
-                      activeDot={{ r: 6, strokeWidth: 0, fill: "#fff" }}
+                      fill="#6366f1"
+                      radius={[4, 4, 0, 0]}
                       name="Tokens Generated"
                     />
-                    <Line
-                      type="monotone"
+                    <Bar
                       dataKey="calls"
-                      stroke="#06b6d4"
-                      strokeWidth={3}
-                      dot={false}
+                      fill="#06b6d4"
+                      radius={[4, 4, 0, 0]}
                       name="API Calls"
                     />
-                  </LineChart>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </div>
@@ -193,13 +190,13 @@ export default function EnterpriseDashboard() {
             <div className="glassmorphic p-6 rounded-xl border border-white/10 flex flex-col">
               <h3 className="text-lg font-semibold text-foreground mb-6 flex items-center gap-2">
                 <span className="w-2 h-6 bg-cyan-500 rounded-full"></span>
-                Cost Distribution by Provider
+                Token Usage by Provider
               </h3>
               <div className="flex-1 min-h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={costBreakdownData}
+                      data={tokenBreakdownData}
                       cx="50%"
                       cy="50%"
                       innerRadius={80}
@@ -208,7 +205,7 @@ export default function EnterpriseDashboard() {
                       dataKey="value"
                       stroke="none"
                     >
-                      {costBreakdownData.map((entry, index) => (
+                      {tokenBreakdownData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={index % 2 === 0 ? "#6366f1" : "#06b6d4"} />
                       ))}
                     </Pie>
@@ -221,7 +218,7 @@ export default function EnterpriseDashboard() {
                         padding: "12px 16px"
                       }}
                       itemStyle={{ color: "#fff" }}
-                      formatter={(value: number) => [`$${value.toFixed(4)}`, 'Cost']}
+                      formatter={(value: number) => [value.toLocaleString(), 'Tokens']}
                     />
                     <Legend
                       layout="vertical"

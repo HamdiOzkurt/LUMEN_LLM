@@ -23,9 +23,9 @@ async function testGemini() {
 
         const response = await llm.generateContent({
             model: 'gemini-2.5-flash',
-            prompt: 'Say "Hello from Gemini Monitor!" in exactly 5 words.',
+            prompt: 'Write a detailed 200-word explanation about the importance of monitoring LLM costs and performance in production applications. Include specific metrics that should be tracked.',
             temperature: 0.7,
-            maxOutputTokens: 20,
+            maxOutputTokens: 300,
         });
 
         const text = response.response.text();
