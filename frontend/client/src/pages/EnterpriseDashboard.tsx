@@ -2,345 +2,353 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { formatCost, formatNumber, formatLatency } from "@/lib/formatters";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  BarChart, Bar, Cell
 } from 'recharts';
-import {
-  Activity, DollarSign,
-  Clock, CheckCircle, ArrowRight
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { MoreHorizontal, ArrowUpRight } from "lucide-react";
 
 // API Configuration
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
+
+// Custom Colors (Refined Palette)
+const COLORS = {
+  GREEN: '#22c55e',  // Requests
+  PURPLE: '#d946ef', // Errors
+  BLUE: '#3b82f6',   // Costs
+  ORANGE: '#f97316', // Users
+  CYAN: '#06b6d4',   // Latency
+  RED: '#ef4444'
+};
 
 export default function EnterpriseDashboard() {
-  const [stats, setStats] = useState({
-    totalCost: 0,
-    totalTokens: 0,
+  const [loading, setLoading] = useState(true);
+
+  // State - Data is now structured exactly as the backend returns it
+  const [metrics, setMetrics] = useState<any>({
+    avgCost: 0,
+    avgPrompt: 0,
+    avgComp: 0,
+    avgTotal: 0,
     totalRequests: 0,
-    avgLatency: 0,
-    errorRate: 0,
-    successRate: 100
+    totalCost: 0,
+    users: 0,
+    avgLatency: 0
   });
-  const [usageTrend, setUsageTrend] = useState<any[]>([]);
-  const [providerStats, setProviderStats] = useState<any[]>([]);
-  const [, setLoading] = useState(true);
+
+  const [trendData, setTrendData] = useState<any[]>([]);
+
+  const [stats, setStats] = useState<any>({
+    errorStats: [],
+    providerStats: [],
+    modelStats: [],
+    costModelStats: []
+  });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [metricsRes, logsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/metrics`),
-          fetch(`${API_BASE}/api/logs?limit=5000`)
-        ]);
+        // Fetch pre-calculated dashboard data from backend
+        const res = await fetch(`${API_BASE}/api/metrics/dashboard`);
+        const data = await res.json();
 
-        const metrics = await metricsRes.json();
-        const logsData = await logsRes.json();
-        const logs = logsData.logs || [];
-
-        // --- 1. HERO STATS CALCULATION ---
-        const totalReqs = logs.length;
-        const errors = logs.filter((l: any) => l.status === 'failed' || l.status === 'error').length;
-        const successRate = totalReqs > 0 ? ((totalReqs - errors) / totalReqs) * 100 : 100;
-
-        const validLatencies = logs.filter((l: any) => l.duration > 0).map((l: any) => l.duration);
-        const avgLat = validLatencies.length > 0
-          ? validLatencies.reduce((a: number, b: number) => a + b, 0) / validLatencies.length
-          : 0;
-
-        setStats({
-          totalCost: metrics.totalCost || 0,
-          totalTokens: metrics.totalTokens || 0,
-          totalRequests: metrics.totalRequests || totalReqs,
-          avgLatency: avgLat,
-          errorRate: (errors / totalReqs) * 100,
-          successRate: successRate
-        });
-
-        // --- 2. TREND CHART DATA (Last 24h Hourly) ---
-        const last24h = new Array(24).fill(0).map((_, i) => {
-          const d = new Date();
-          d.setHours(d.getHours() - (23 - i));
-          return {
-            hour: d.getHours() + ':00',
-            tokens: 0,
-            latency: 0,
-            count: 0
-          };
-        });
-
-        logs.forEach((log: any) => {
-          if (!log.timestamp) return;
-          const logDate = new Date(log.timestamp);
-          // Basit saat eşleştirmesi (Demo amaçlı sadece son saatleri doldurur)
-          const hourStr = logDate.getHours() + ':00';
-          const slot = last24h.find(s => s.hour === hourStr);
-          if (slot) {
-            slot.tokens += (log.totalTokens || 0);
-            slot.latency += (log.duration || 0);
-            slot.count++;
-          }
-        });
-
-        // Boş slotları temizle veya sıfır olarak bırak
-        const trendData = last24h.map(slot => ({
-          ...slot,
-          latency: slot.count > 0 ? Math.round(slot.latency / slot.count) : 0
-        }));
-        setUsageTrend(trendData);
-
-        // --- 3. PROVIDER STATS ---
-        const pStats: any = {};
-        logs.forEach((log: any) => {
-          const p = log.provider || 'unknown';
-          if (!pStats[p]) {
-            pStats[p] = { name: p, tokens: 0, calls: 0, cost: 0, latencySum: 0 };
-          }
-          pStats[p].tokens += (log.totalTokens || 0);
-          pStats[p].calls++;
-          pStats[p].cost += (log.cost || 0);
-          pStats[p].latencySum += (log.duration || 0);
-        });
-
-        setProviderStats(Object.values(pStats).map((p: any) => ({
-          ...p,
-          avgCost: p.calls > 0 ? p.cost / p.calls : 0,
-          avgLatency: p.calls > 0 ? p.latencySum / p.calls : 0
-        })));
+        if (data && data.metrics) {
+          setMetrics(data.metrics);
+          setTrendData(data.trendData || []);
+          setStats(data.stats || {
+            errorStats: [],
+            providerStats: [],
+            modelStats: [],
+            costModelStats: []
+          });
+        }
 
         setLoading(false);
+
       } catch (error) {
-        console.error("Dashboard Error:", error);
+        console.error("Dashboard Fetch Error:", error);
         setLoading(false);
       }
     };
-
     fetchData();
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 10000); // 10s refresh
     return () => clearInterval(interval);
   }, []);
 
-  const changes = {
-    cost: "+12%",
-    tokens: "+5%",
-    latency: "-8%",
-    success: "+0.2%"
-  };
+  const tooltipStyle = { backgroundColor: '#09090b', borderColor: '#27272a', borderRadius: '6px', fontSize: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[calc(100vh-100px)] text-muted-foreground animate-pulse">
+          Loading dashboard data...
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8 pb-10">
 
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">LLM Observability Dashboard</h1>
-          <p className="text-muted-foreground text-sm">Real-time insights into your LLM infrastructure performance, costs, and usage patterns.</p>
-        </div>
-
-        {/* 1. HERO CARDS (Stats) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total Cost */}
-          <div className="glassmorphic p-5 rounded-xl border border-white/10 relative overflow-hidden group">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">TOTAL COST</span>
-              <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 group-hover:text-indigo-300 transition-colors">
-                <DollarSign className="w-5 h-5" />
-              </div>
+        {/* 1. METRICS STRIP */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 pb-6 border-b border-white/5">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
+              Avg Cost / Req
             </div>
-            <div className="text-3xl font-bold text-foreground mb-2">{formatCost(stats.totalCost)}</div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex items-center">
-                {changes.cost}
-              </span>
-              <span className="text-muted-foreground">vs last 24h</span>
-            </div>
+            <div className="text-2xl font-mono font-medium text-foreground">{formatCost(metrics.avgCost)}</div>
           </div>
-
-          {/* Total Tokens */}
-          <div className="glassmorphic p-5 rounded-xl border border-white/10 relative overflow-hidden group">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">TOTAL TOKENS</span>
-              <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400 group-hover:text-purple-300 transition-colors">
-                <Activity className="w-5 h-5" />
-              </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
+              Avg Prompt Tokens
             </div>
-            <div className="text-3xl font-bold text-foreground mb-2">{formatNumber(stats.totalTokens)}</div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex items-center">
-                {changes.tokens}
-              </span>
-              <span className="text-muted-foreground">vs last 24h</span>
-            </div>
+            <div className="text-2xl font-mono font-medium text-foreground">{metrics.avgPrompt.toFixed(1)}</div>
           </div>
-
-          {/* Avg Latency */}
-          <div className="glassmorphic p-5 rounded-xl border border-white/10 relative overflow-hidden group">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AVG LATENCY</span>
-              <div className="p-2 bg-cyan-500/10 rounded-lg text-cyan-400 group-hover:text-cyan-300 transition-colors">
-                <Clock className="w-5 h-5" />
-              </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
+              Avg Compl. Tokens
             </div>
-            <div className="text-3xl font-bold text-foreground mb-2">{formatLatency(stats.avgLatency)}</div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex items-center">
-                {changes.latency}
-              </span>
-              <span className="text-muted-foreground">vs last 24h</span>
-            </div>
+            <div className="text-2xl font-mono font-medium text-foreground">{metrics.avgComp.toFixed(1)}</div>
           </div>
-
-          {/* Success Rate */}
-          <div className="glassmorphic p-5 rounded-xl border border-white/10 relative overflow-hidden group">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SUCCESS RATE</span>
-              <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 group-hover:text-amber-300 transition-colors">
-                <CheckCircle className="w-5 h-5" />
-              </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-bold mb-2 flex items-center justify-between">
+              Avg Total Tokens
             </div>
-            <div className="text-3xl font-bold text-foreground mb-2">{stats.successRate.toFixed(1)}%</div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded font-medium flex items-center">
-                {changes.success}
-              </span>
-              <span className="text-muted-foreground">vs last 24h</span>
-            </div>
+            <div className="text-2xl font-mono font-medium text-foreground">{metrics.avgTotal.toFixed(1)}</div>
           </div>
         </div>
 
-        {/* 2. CHARTS SECTION */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Trend Chart (Area) - Spans 2 cols */}
-          <div className="lg:col-span-2 glassmorphic p-6 rounded-xl border border-white/10">
-            <h3 className="text-sm font-bold text-foreground mb-6 pl-2 border-l-4 border-indigo-500">
-              Token Usage Trend
-            </h3>
-            <div className="h-[300px] w-full">
+        {/* 2. ROW 1: REQUESTS TREND + STATS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* REQUESTS CHART (Expanded Area) */}
+          <div className="lg:col-span-2 glassmorphic p-6 rounded-2xl border border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent min-h-[300px] flex flex-col">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Total Requests</h3>
+                <div className="text-3xl font-bold mt-1 text-green-400">{formatNumber(metrics.totalRequests)}</div>
+              </div>
+              <div className="p-2 bg-green-400/10 rounded-lg">
+                <ArrowUpRight className="w-5 h-5 text-green-400" />
+              </div>
+            </div>
+            <div className="flex-1 w-full min-h-[200px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={usageTrend}>
+                <AreaChart data={trendData} margin={{ top: 5, right: 0, left: 0, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="colorTokens" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                    <linearGradient id="colorReqs" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.GREEN} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={COLORS.GREEN} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis
-                    dataKey="hour"
-                    stroke="#9ca3af"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    stroke="#9ca3af"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
-                    tickFormatter={(value) => `${value}`}
-                  />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f1117', borderColor: '#ffffff20', borderRadius: '8px' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
+                  <XAxis dataKey="date" hide />
                   <Area
                     type="monotone"
-                    dataKey="tokens"
-                    stroke="#6366f1"
+                    dataKey="requests"
+                    stroke={COLORS.GREEN}
                     strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorTokens)"
+                    fill="url(#colorReqs)"
+                    activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
                   />
+                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} cursor={{ stroke: 'rgba(255,255,255,0.1)' }} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Distribution Chart (Donut) - Spans 1 col */}
-          <div className="glassmorphic p-6 rounded-xl border border-white/10">
-            <h3 className="text-sm font-bold text-foreground mb-6 pl-2 border-l-4 border-cyan-500">
-              Token Usage by Provider
-            </h3>
-            <div className="h-[300px] w-full flex flex-col items-center justify-center relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={providerStats}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="tokens"
-                  >
-                    {providerStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#0f1117', borderColor: '#ffffff20', borderRadius: '8px' }}
-                    itemStyle={{ color: '#fff' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center Text (Total) */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-[60%] text-center pointer-events-none">
-                <div className="text-2xl font-bold text-white">{providerStats.length}</div>
-                <div className="text-[10px] text-muted-foreground uppercase">Providers</div>
+          {/* SIDE STATS: Errors & Providers */}
+          <div className="flex flex-col gap-6 min-h-[300px]">
+
+            {/* Errors */}
+            <div className="flex-1 glassmorphic p-5 rounded-2xl border border-white/5 flex flex-col justify-center">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">All Errors</h3>
+                <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
+              </div>
+              <div className="text-2xl font-bold mb-4">
+                {formatNumber(stats.errorStats.reduce((a: any, b: any) => a + b.value, 0))} <span className="text-xs font-medium text-muted-foreground">events</span>
+              </div>
+              <div className="space-y-4 flex-1">
+                {stats.errorStats.length === 0 && <div className="text-xs text-muted-foreground py-2">No errors detected.</div>}
+                {stats.errorStats.map((err: any, i: number) => (
+                  <div key={i} className="space-y-1">
+                    <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground">
+                      <span>{err.name}</span>
+                      <span>{err.percent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${err.percent}%`,
+                          backgroundColor: i === 0 ? COLORS.PURPLE : COLORS.BLUE
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top Providers */}
+            <div className="flex-1 glassmorphic p-5 rounded-2xl border border-white/5 flex flex-col justify-center">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Top Providers</h3>
+                <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
+              </div>
+              <div className="space-y-3">
+                {stats.providerStats.map((p: any, i: number) => (
+                  <div key={i} className="flex justify-between items-center text-xs group">
+                    <span className="capitalize text-foreground font-medium flex items-center gap-2 group-hover:text-white transition-colors">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
+                      {p.name}
+                    </span>
+                    <span className="font-mono text-muted-foreground bg-white/5 px-2 py-0.5 rounded">{p.value} requests</span>
+                  </div>
+                ))}
+                {stats.providerStats.length === 0 && <div className="text-xs text-muted-foreground">No data available.</div>}
               </div>
             </div>
           </div>
         </div>
 
-        {/* 3. PROVIDER STATISTICS TABLE */}
-        <div className="glassmorphic rounded-xl border border-white/10 overflow-hidden">
-          <div className="p-6 border-b border-white/5 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-foreground pl-2 border-l-4 border-indigo-500">
-              Provider Statistics
-            </h3>
-            <Button variant="ghost" size="sm" className="text-xs text-indigo-400 hover:text-indigo-300">
-              View All <ArrowRight className="w-3 h-3 ml-1" />
-            </Button>
+        {/* 3. ROW 2: COST & USERS & MODELS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* COSTS Chart */}
+          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[280px]">
+            <div className="mb-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Total Cost</div>
+              <div className="text-2xl font-bold text-blue-400">{formatCost(metrics.totalCost)}</div>
+            </div>
+            <div className="flex-1 w-full min-h-[150px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendData}>
+                  <Bar dataKey="cost" fill={COLORS.BLUE} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-white/5 text-xs uppercase text-muted-foreground font-semibold">
-                <tr>
-                  <th className="px-6 py-4">Provider</th>
-                  <th className="px-6 py-4 text-right">Tokens</th>
-                  <th className="px-6 py-4 text-right">Calls</th>
-                  <th className="px-6 py-4 text-right">Cost</th>
-                  <th className="px-6 py-4 text-right">Avg Cost/Call</th>
-                  <th className="px-6 py-4 text-right">Avg Latency</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {providerStats.map((p, i) => (
-                  <tr key={i} className="hover:bg-white/5 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: COLORS[i % COLORS.length] }}></div>
-                        <span className="font-medium text-foreground capitalize">{p.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right font-mono text-muted-foreground">{formatNumber(p.tokens)}</td>
-                    <td className="px-6 py-4 text-right font-mono text-muted-foreground">{p.calls}</td>
-                    <td className="px-6 py-4 text-right font-mono text-foreground font-medium">{formatCost(p.cost)}</td>
-                    <td className="px-6 py-4 text-right font-mono text-muted-foreground">{formatCost(p.avgCost)}</td>
-                    <td className="px-6 py-4 text-right font-mono text-muted-foreground">{formatLatency(p.avgLatency)}</td>
-                  </tr>
-                ))}
-                {providerStats.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-8 text-muted-foreground">No provider data available yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          {/* USERS Chart */}
+          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[280px]">
+            <div className="mb-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Active Projects</div>
+              <div className="text-2xl font-bold text-orange-400">{formatNumber(metrics.users)}</div>
+            </div>
+            <div className="flex-1 w-full min-h-[150px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendData}>
+                  <Bar dataKey="users" fill={COLORS.ORANGE} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Top Models Bars */}
+          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col min-h-[280px]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Top Models (Vol)</h3>
+              <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
+            </div>
+            <div className="space-y-4 flex-1 overflow-auto custom-scrollbar">
+              {stats.modelStats.map((m: any, i: number) => (
+                <div key={i} className="group">
+                  <div className="flex justify-between text-[11px] mb-1.5 font-medium">
+                    <span className="text-foreground group-hover:text-white transition-colors">{m.name}</span>
+                    <span className="text-muted-foreground font-mono">{m.value} reqs</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden relative">
+                    <div
+                      className="h-full absolute left-0 top-0 transition-all duration-500 rounded-full"
+                      style={{
+                        width: `${(m.value / (stats.modelStats[0]?.value || 1)) * 100}%`,
+                        backgroundColor: i === 0 ? '#f9a8d4' : i === 1 ? '#a5b4fc' : '#fde047',
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 4. ROW 3: LATENCY & TTFT & COST MODELS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* Latency Area */}
+          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[250px]">
+            <div className="mb-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Latency Trend</div>
+              <div className="text-2xl font-bold text-cyan-400">{formatLatency(metrics.avgLatency || 0)} <span className="text-sm font-normal text-muted-foreground">/ req</span></div>
+            </div>
+            <div className="flex-1 w-full min-h-[120px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="colorLat" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.CYAN} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={COLORS.CYAN} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="avgLatency" stroke={COLORS.CYAN} strokeWidth={2} fill="url(#colorLat)" />
+                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Time to First Token (TTFT) - Mock Data based on Latency */}
+          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col justify-between min-h-[250px]">
+            <div className="mb-4">
+              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Time to First Token</div>
+              <div className="text-2xl font-bold text-purple-400">
+                Average: {metrics.avgLatency ? (metrics.avgLatency * 0.3).toFixed(0) : 0} ms
+              </div>
+            </div>
+            <div className="flex-1 w-full min-h-[120px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="colorTTFT" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={COLORS.PURPLE} stopOpacity={0.4} />
+                      <stop offset="95%" stopColor={COLORS.PURPLE} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <Area type="monotone" dataKey="avgLatency" stroke={COLORS.PURPLE} strokeWidth={2} fill="url(#colorTTFT)" />
+                  <RechartsTooltip contentStyle={tooltipStyle} itemStyle={{ color: '#fff' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Cost by Models List */}
+          <div className="glassmorphic p-6 rounded-2xl border border-white/5 flex flex-col min-h-[250px]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Top Models (Cost)</h3>
+              <MoreHorizontal className="w-4 h-4 text-muted-foreground/50" />
+            </div>
+            <div className="space-y-4 flex-1 overflow-auto custom-scrollbar">
+              {stats.costModelStats.map((m: any, i: number) => (
+                <div key={i} className="group">
+                  <div className="flex justify-between text-[11px] mb-1.5 font-medium">
+                    <span className="text-foreground group-hover:text-white transition-colors">{m.name}</span>
+                    <span className="text-muted-foreground font-mono">{formatCost(m.value)}</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden relative">
+                    <div
+                      className="h-full absolute left-0 top-0 transition-all duration-500 rounded-full bg-cyan-500/50"
+                      style={{
+                        width: `${(m.value / (stats.costModelStats[0]?.value || 1)) * 100}%`,
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 

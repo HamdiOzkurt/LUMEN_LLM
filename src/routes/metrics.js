@@ -192,4 +192,135 @@ router.get('/timeseries-by-model', async (req, res) => {
     }
 });
 
+// Dashboard için tüm verileri tek seferde getir (Enterprise Layout için)
+router.get('/dashboard', async (req, res) => {
+    try {
+        const { projectId } = req.query;
+        let logs = getMemoryLogs();
+
+        if (projectId) {
+            logs = logs.filter(log => log.projectId === projectId);
+        }
+
+        // --- 1. TOP METRICS ---
+        const totalReqs = logs.length;
+        const totalCost = logs.reduce((acc, log) => acc + (log.cost || 0), 0);
+        const totalPrompt = logs.reduce((acc, log) => acc + (log.promptTokens || 0), 0);
+        const totalComp = logs.reduce((acc, log) => acc + (log.completionTokens || 0), 0);
+        const totalTokens = logs.reduce((acc, log) => acc + (log.totalTokens || 0), 0);
+
+        const latencies = logs.filter(l => l.duration > 0).map(l => l.duration);
+        const avgLatency = latencies.length ? latencies.reduce((a, b) => a + b, 0) / latencies.length : 0;
+
+        const metrics = {
+            avgCost: totalReqs ? totalCost / totalReqs : 0,
+            avgPrompt: totalReqs ? totalPrompt / totalReqs : 0,
+            avgComp: totalReqs ? totalComp / totalReqs : 0,
+            avgTotal: totalReqs ? totalTokens / totalReqs : 0,
+            totalRequests: totalReqs,
+            totalCost: totalCost,
+            users: new Set(logs.map(l => l.projectId)).size,
+            avgLatency: avgLatency
+        };
+
+        // --- 2. CHART TREND DATA (Last 14 Days) ---
+        const getPastDates = (days) => {
+            const dates = [];
+            for (let i = days - 1; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                dates.push(d.toLocaleDateString('en-GB'));
+            }
+            return dates;
+        };
+
+        const dateSlots = getPastDates(14);
+        const dailyData = dateSlots.map(date => ({
+            date,
+            requests: 0,
+            cost: 0,
+            users: new Set(),
+            latencySum: 0,
+            latencyCount: 0
+        }));
+
+        logs.forEach(log => {
+            const logDate = new Date(log.timestamp).toLocaleDateString('en-GB');
+            const slot = dailyData.find(d => d.date === logDate);
+            if (slot) {
+                slot.requests++;
+                slot.cost += (log.cost || 0);
+                slot.users.add(log.projectId);
+                if (log.duration) {
+                    slot.latencySum += log.duration;
+                    slot.latencyCount++;
+                }
+            }
+        });
+
+        const trendData = dailyData.map(d => ({
+            ...d,
+            users: d.users.size,
+            avgLatency: d.latencyCount ? d.latencySum / d.latencyCount : 0
+        }));
+
+        // --- 3. STATS (Errors, Providers, Models) ---
+        const errCounts = { '400': 0, '404': 0, '500': 0, 'cancelled': 0 };
+        const provCounts = {};
+        const modCounts = {};
+        const costModCounts = {};
+
+        logs.forEach(log => {
+            // Errors
+            if (log.status !== 'success') {
+                if (log.error?.code === 400 || log.statusCode === 400) errCounts['400']++;
+                else if (log.error?.code === 404 || log.statusCode === 404) errCounts['404']++;
+                else if (log.error?.code === 500 || log.statusCode === 500) errCounts['500']++;
+                else errCounts['cancelled']++;
+            }
+            // Providers
+            const p = log.provider || 'unknown';
+            provCounts[p] = (provCounts[p] || 0) + 1;
+            // Models
+            const m = log.model || 'unknown';
+            modCounts[m] = (modCounts[m] || 0) + 1;
+            costModCounts[m] = (costModCounts[m] || 0) + (log.cost || 0);
+        });
+
+        // Format Stats
+        const totalErrors = Object.values(errCounts).reduce((a, b) => a + b, 0);
+        const errorStats = Object.entries(errCounts).map(([key, val]) => ({
+            name: key,
+            value: val,
+            percent: totalErrors ? (val / totalErrors) * 100 : 0
+        })).filter(e => e.value > 0);
+
+        const providerStats = Object.entries(provCounts)
+            .map(([name, val]) => ({ name, value: val }))
+            .sort((a, b) => b.value - a.value).slice(0, 5);
+
+        const modelStats = Object.entries(modCounts)
+            .map(([name, val]) => ({ name, value: val }))
+            .sort((a, b) => b.value - a.value).slice(0, 5);
+
+        const costModelStats = Object.entries(costModCounts)
+            .map(([name, val]) => ({ name, value: val }))
+            .sort((a, b) => b.value - a.value).slice(0, 5);
+
+        res.json({
+            metrics,
+            trendData,
+            stats: {
+                errorStats,
+                providerStats,
+                modelStats,
+                costModelStats
+            }
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export default router;
