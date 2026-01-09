@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Shield, Zap, TrendingDown, DollarSign } from "lucide-react";
+import { formatCost } from "@/lib/formatters";
 
 // API Configuration
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -148,7 +149,7 @@ export default function Models() {
                                             </div>
                                             <div className="bg-secondary/30 p-3 rounded-lg border border-white/5">
                                                 <div className="text-[10px] text-muted-foreground mb-1">Avg Request</div>
-                                                <div className="font-mono text-indigo-400 font-bold">${model.avgCost.toFixed(5)}</div>
+                                                <div className="font-mono text-indigo-400 font-bold">{formatCost(model.avgCost)}</div>
                                             </div>
                                         </div>
                                     </div>

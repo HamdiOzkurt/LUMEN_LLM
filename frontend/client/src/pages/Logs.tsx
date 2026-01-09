@@ -1,207 +1,198 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Terminal, Search, Filter, X } from "lucide-react";
+import { Search, Filter, RefreshCcw, AlertCircle, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { formatCost } from "@/lib/formatters";
+import { formatNumber, formatCost, formatLatency } from "@/lib/formatters";
 
 // API Configuration
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export default function Logs() {
-    const [logs, setLogs] = useState<any[]>([]);
-    const [filteredLogs, setFilteredLogs] = useState<any[]>([]);
+    const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [providerFilter, setProviderFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
-    const [showFilters, setShowFilters] = useState(false);
+
+    const fetchLogs = async () => {
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/logs?limit=100`);
+            const data = await res.json();
+            setLogs(data.logs || []);
+        } catch (error) {
+            console.error("Error fetching logs:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchLogs = async () => {
-            try {
-                const res = await fetch(`${API_BASE}/api/logs?limit=50`);
-                const data = await res.json();
-                setLogs(data.logs || []);
-                setLoading(false);
-            } catch (error) {
-                console.error('Error fetching logs:', error);
-                setLoading(false);
-            }
-        };
-
         fetchLogs();
         const interval = setInterval(fetchLogs, 5000);
         return () => clearInterval(interval);
     }, []);
 
-    // Apply filters and search
-    useEffect(() => {
-        let result = [...logs];
+    // Filtreleme
+    const filteredLogs = logs.filter((log: any) => {
+        const matchesProvider = providerFilter === "all" || log.provider === providerFilter;
+        const matchesSearch = log.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (log.error?.message || "").toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesProvider && matchesSearch;
+    });
 
-        // Provider filter
-        if (selectedProvider) {
-            result = result.filter(log => log.provider === selectedProvider);
-        }
+    // Helper: Badge Colors
+    const getStatusColor = (status: string) => {
+        if (status === 'failed' || status === 'error') return 'bg-red-500/10 text-red-400 border-red-500/20';
+        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    };
 
-        // Search filter (model name)
-        if (searchQuery) {
-            result = result.filter(log =>
-                log.model?.toLowerCase().includes(searchQuery.toLowerCase())
-            );
-        }
+    const getProviderColor = (provider: string) => {
+        if (provider?.includes('openai')) return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+        if (provider?.includes('gemini')) return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+        if (provider?.includes('anthropic') || provider?.includes('claude')) return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+        return 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+    };
 
-        setFilteredLogs(result);
-    }, [logs, selectedProvider, searchQuery]);
-
-    const providers = Array.from(new Set(logs.map(log => log.provider)));
+    const getLatencyColor = (ms: number) => {
+        if (ms < 500) return 'text-emerald-400';
+        if (ms < 1500) return 'text-amber-400';
+        return 'text-red-400';
+    };
 
     return (
         <DashboardLayout>
-            <div className="flex flex-col gap-6 h-[calc(100vh-140px)]">
+            <div className="space-y-6">
 
-                {/* Header Section */}
-                <div className="flex items-center justify-between">
+                {/* Header & Controls */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                            <Terminal className="w-8 h-8 text-indigo-500" />
-                            Live Logs
-                        </h1>
-                        <p className="text-muted-foreground mt-1">
-                            Real-time stream of all LLM requests, completions, and errors.
-                        </p>
+                        <h1 className="text-2xl font-bold text-foreground">Request Logs</h1>
+                        <p className="text-muted-foreground text-sm">Detailed trace of every interaction with your LLMs.</p>
                     </div>
-                    <div className="flex gap-2">
-                        <Button
-                            variant={showFilters ? "default" : "outline"}
-                            className="gap-2"
-                            onClick={() => setShowFilters(!showFilters)}
+
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                            <input
+                                type="text"
+                                placeholder="Search models, errors..."
+                                className="pl-9 pr-4 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-foreground focus:outline-none focus:border-indigo-500 w-64 transition-colors"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                        <select
+                            className="px-4 py-2 bg-black/20 border border-white/10 rounded-lg text-sm text-foreground focus:outline-none focus:border-indigo-500"
+                            value={providerFilter}
+                            onChange={(e) => setProviderFilter(e.target.value)}
                         >
-                            <Filter className="w-4 h-4" />
-                            Filter
+                            <option value="all">All Providers</option>
+                            <option value="gemini">Gemini</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="ollama">Ollama</option>
+                        </select>
+                        <Button variant="ghost" size="icon" onClick={fetchLogs} className="text-muted-foreground hover:text-white">
+                            <RefreshCcw className="w-4 h-4" />
                         </Button>
                     </div>
                 </div>
 
-                {/* Filter Panel */}
-                {showFilters && (
-                    <div className="glassmorphic p-4 rounded-xl border border-white/10 flex gap-4 items-center">
-                        <div className="flex-1">
-                            <label className="text-xs text-muted-foreground mb-2 block">Search by Model</label>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                <Input
-                                    placeholder="e.g., gemini-2.5-flash, gpt-4..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="pl-10"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex-1">
-                            <label className="text-xs text-muted-foreground mb-2 block">Filter by Provider</label>
-                            <div className="flex gap-2 flex-wrap">
-                                {providers.map(provider => (
-                                    <Button
-                                        key={provider}
-                                        variant={selectedProvider === provider ? "default" : "outline"}
-                                        size="sm"
-                                        onClick={() => setSelectedProvider(selectedProvider === provider ? null : provider)}
-                                        className="capitalize"
-                                    >
-                                        {provider}
-                                    </Button>
-                                ))}
-                                {selectedProvider && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setSelectedProvider(null)}
-                                        className="gap-1"
-                                    >
-                                        <X className="w-3 h-3" />
-                                        Clear
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Results Count */}
-                {(searchQuery || selectedProvider) && (
-                    <div className="text-sm text-muted-foreground">
-                        Showing {filteredLogs.length} of {logs.length} logs
-                    </div>
-                )}
-
-                {/* Logs Table Container */}
-                <div className="flex-1 glassmorphic rounded-xl border border-white/10 overflow-hidden flex flex-col shadow-2xl">
-                    {loading ? (
-                        <div className="flex-1 flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                    ) : (
-                        <div className="flex-1 overflow-auto">
-                            <table className="w-full text-sm text-left border-collapse">
-                                <thead className="bg-white/5 text-muted-foreground uppercase text-[10px] tracking-widest font-bold sticky top-0 backdrop-blur-md z-10">
+                {/* LOGS TABLE (Resim 3 Style) */}
+                <div className="glassmorphic rounded-xl border border-white/10 overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-white/5 text-xs uppercase text-muted-foreground font-semibold">
+                                <tr>
+                                    <th className="px-6 py-4 w-40">Created At</th>
+                                    <th className="px-6 py-4 w-28">Status</th>
+                                    <th className="px-6 py-4 w-32">Provider</th>
+                                    <th className="px-6 py-4">Request</th>
+                                    <th className="px-6 py-4 w-32">Model</th>
+                                    <th className="px-6 py-4 text-right w-32">Tokens</th>
+                                    <th className="px-6 py-4 text-right w-24">Latency</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {loading ? (
                                     <tr>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5">Status</th>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5">Time</th>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5">Provider</th>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5">Model</th>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5 text-right w-32">Tokens (In/Out)</th>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5 text-right w-24">Latency</th>
-                                        <th className="px-6 py-4 font-medium border-b border-white/5 text-right w-24">Cost</th>
+                                        <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <RefreshCcw className="w-4 h-4 animate-spin" /> Loading logs...
+                                            </div>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {filteredLogs.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
-                                                {logs.length === 0 ? "No logs found yet. Waiting for requests..." : "No logs match your filters."}
+                                ) : filteredLogs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="text-center py-12 text-muted-foreground">No logs found matching your filters.</td>
+                                    </tr>
+                                ) : (
+                                    filteredLogs.map((log: any) => (
+                                        <tr key={log.id} className="hover:bg-white/5 transition-colors group cursor-pointer">
+                                            {/* Date */}
+                                            <td className="px-6 py-4 text-muted-foreground text-xs font-mono">
+                                                {new Date(log.timestamp).toLocaleDateString()} <span className="text-white/50">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                                            </td>
+
+                                            {/* Status Badge */}
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-xs font-medium border flex w-fit items-center gap-1.5 ${getStatusColor(log.status)}`}>
+                                                    {log.status === 'success' ? <CheckCircle className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                                                    <span className="capitalize">{log.status}</span>
+                                                </span>
+                                            </td>
+
+                                            {/* Provider Badge */}
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border ${getProviderColor(log.provider)}`}>
+                                                    {log.provider}
+                                                </span>
+                                            </td>
+
+                                            {/* Request (Truncated) */}
+                                            <td className="px-6 py-4 max-w-xs truncate text-muted-foreground group-hover:text-foreground transition-colors" title={JSON.stringify(log)}>
+                                                {log.error ? (
+                                                    <span className="text-red-400 flex items-center gap-2">
+                                                        <AlertCircle className="w-3 h-3" />
+                                                        {log.error.message || "Unknown Error"}
+                                                    </span>
+                                                ) : (
+                                                    "Request Details available on click" // Backend henüz full prompt'u dönmüyor olabilir, özet geçiyoruz
+                                                )}
+                                            </td>
+
+                                            {/* Model */}
+                                            <td className="px-6 py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-foreground font-medium">{log.model}</span>
+                                                    <span className="text-[10px] text-muted-foreground">{log.projectId || 'default'}</span>
+                                                </div>
+                                            </td>
+
+                                            {/* Tokens */}
+                                            <td className="px-6 py-4 text-right font-mono text-muted-foreground">
+                                                {formatNumber(log.totalTokens || 0)}
+                                            </td>
+
+                                            {/* Latency */}
+                                            <td className={`px-6 py-4 text-right font-mono font-medium ${getLatencyColor(log.duration)}`}>
+                                                {formatLatency(log.duration)}
                                             </td>
                                         </tr>
-                                    ) : (
-                                        filteredLogs.map((log: any, idx: number) => (
-                                            <tr key={log._id || idx} className="hover:bg-white/5 transition-colors group cursor-pointer">
-                                                <td className="px-6 py-3">
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${log.status === "failed" || log.statusCode >= 400
-                                                        ? "bg-red-500/10 text-red-500 border-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.2)]"
-                                                        : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]"
-                                                        }`}>
-                                                        {log.status === "failed" || log.statusCode >= 400 ? "Failed" : "200 OK"}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-3 font-mono text-muted-foreground text-xs">
-                                                    {new Date(log.timestamp).toLocaleTimeString()}
-                                                    <span className="opacity-50 text-[10px] ml-1">.{new Date(log.timestamp).getMilliseconds()}</span>
-                                                </td>
-                                                <td className="px-6 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                                                        <span className="capitalize font-medium text-foreground">{log.provider}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-3">
-                                                    <span className="font-mono text-xs bg-white/5 px-2 py-1 rounded text-foreground/80">{log.model}</span>
-                                                </td>
-                                                <td className="px-6 py-3 text-right font-mono text-xs text-muted-foreground">
-                                                    {log.promptTokens || log.prompt_tokens}/{log.completionTokens || log.completion_tokens}
-                                                </td>
-                                                <td className="px-6 py-3 text-right font-mono text-[#06b6d4]">
-                                                    {Math.round(log.duration)}ms
-                                                </td>
-                                                <td className="px-6 py-3 text-right font-mono text-[#6366f1] font-bold">
-                                                    {formatCost(log.cost || 0)}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    {/* Pagination Footer (Mock) */}
+                    <div className="px-6 py-4 border-t border-white/5 flex items-center justify-between text-xs text-muted-foreground bg-white/[0.02]">
+                        <span>Showing {filteredLogs.length} results</span>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" disabled className="h-7 text-xs bg-transparent border-white/10">Previous</Button>
+                            <Button variant="outline" size="sm" disabled className="h-7 text-xs bg-transparent border-white/10">Next</Button>
                         </div>
-                    )}
+                    </div>
                 </div>
+
             </div>
         </DashboardLayout>
     );
