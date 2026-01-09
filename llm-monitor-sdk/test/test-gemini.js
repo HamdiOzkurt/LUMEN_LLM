@@ -13,7 +13,7 @@ async function testGemini() {
     const llm = new GeminiProvider({
         apiKey: process.env.GEMINI_API_KEY,
         backendUrl: 'http://localhost:5000/api',
-        projectId: 'test-app',
+        projectId: 'super-ai-botu',
         environment: 'development',
         debug: true,
     });

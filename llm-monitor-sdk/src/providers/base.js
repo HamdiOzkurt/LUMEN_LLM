@@ -29,11 +29,18 @@ export class BaseProvider {
      * Her çağrıyı loglamak için temel metod
      */
     async logUsage(data) {
+        // API Key Maskeleme (Güvenlik için son 5 karakter)
+        let keyMask = 'unknown';
+        if (this.config.apiKey && typeof this.config.apiKey === 'string' && this.config.apiKey.length > 5) {
+            keyMask = '...' + this.config.apiKey.slice(-5);
+        }
+
         const logEntry = {
             id: uuidv4(),
             timestamp: new Date().toISOString(),
             projectId: this.config.projectId,
             environment: this.config.environment,
+            apiKeyMask: keyMask, // Yeni alan: Key ayrımı için
             ...data,
         };
 

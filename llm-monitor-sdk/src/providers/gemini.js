@@ -50,6 +50,19 @@ export class GeminiProvider extends BaseProvider {
         } finally {
             const duration = Date.now() - startTime;
 
+            // Extract HTTP status code
+            const statusCode = error ? (error.code && typeof error.code === 'number' ? error.code : 500) : 200;
+
+            // Fallback token calculation for errors (input only)
+            if (!usage && params.prompt) {
+                const estTokens = Math.ceil(params.prompt.length / 4);
+                usage = {
+                    promptTokens: estTokens,
+                    completionTokens: 0,
+                    totalTokens: estTokens
+                };
+            }
+
             await this.logUsage({
                 provider: 'gemini',
                 model: params.model,
@@ -57,7 +70,8 @@ export class GeminiProvider extends BaseProvider {
                 completionTokens: usage?.completionTokens || 0,
                 totalTokens: usage?.totalTokens || 0,
                 duration,
-                status: error ? 'error' : 'success',
+                status: error ? 'failed' : 'success',
+                statusCode: statusCode,
                 error: error || undefined,
                 cost: usage ? calculateCost('gemini', params.model, usage) : 0,
                 metadata: {
@@ -104,10 +118,24 @@ export class GeminiProvider extends BaseProvider {
                 error = {
                     message: err.message,
                     type: err.name || 'unknown',
+                    code: err.status || 'unknown',
                 };
                 throw err;
             } finally {
                 const duration = Date.now() - startTime;
+
+                // Extract HTTP status code
+                const statusCode = error ? (error.code && typeof error.code === 'number' ? error.code : 500) : 200;
+
+                // Fallback token calculation
+                if (!usage && message) {
+                    const estTokens = Math.ceil(message.length / 4);
+                    usage = {
+                        promptTokens: estTokens,
+                        completionTokens: 0,
+                        totalTokens: estTokens
+                    };
+                }
 
                 await this.logUsage({
                     provider: 'gemini',
@@ -116,7 +144,8 @@ export class GeminiProvider extends BaseProvider {
                     completionTokens: usage?.completionTokens || 0,
                     totalTokens: usage?.totalTokens || 0,
                     duration,
-                    status: error ? 'error' : 'success',
+                    status: error ? 'failed' : 'success',
+                    statusCode: statusCode,
                     error: error || undefined,
                     cost: usage ? calculateCost('gemini', params.model, usage) : 0,
                     metadata: {

@@ -174,12 +174,14 @@ export default function EnterpriseDashboard() {
                       fill="#6366f1"
                       radius={[4, 4, 0, 0]}
                       name="Tokens Generated"
+                      barSize={100}
                     />
                     <Bar
                       dataKey="calls"
                       fill="#06b6d4"
                       radius={[4, 4, 0, 0]}
                       name="API Calls"
+                      barSize={100}
                     />
                   </BarChart>
                 </ResponsiveContainer>
