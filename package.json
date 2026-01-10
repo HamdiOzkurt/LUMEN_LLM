@@ -1,6 +1,6 @@
 {
   "name": "@hamdi_ozkurt/llm-dashboard-backend",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "LLM Usage, Cost and Performance Monitoring - Backend API",
   "main": "src/server.js",
