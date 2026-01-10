@@ -78,7 +78,7 @@ export class GeminiProvider extends BaseProvider {
                 status: error ? 'failed' : 'success',
                 statusCode: statusCode,
                 error: error || undefined,
-                cost: usage ? calculateCost('gemini', params.model, usage) : 0,
+                cost: (usage && !error) ? calculateCost('gemini', params.model, usage) : 0,
                 metadata: {
                     temperature: params.temperature,
                     maxOutputTokens: params.maxOutputTokens,
