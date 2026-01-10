@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatCost } from "@/lib/formatters";
 
 // Mock Data Generator
 const generateMockLogs = (count: number) => {
@@ -38,10 +39,21 @@ export default function Requests() {
     const [currentPage, setCurrentPage] = useState(1);
     const logsPerPage = 15;
 
+
     useEffect(() => {
-        // Use Mock Data
-        const mockData = generateMockLogs(50);
-        setLogs(mockData);
+        // Fetch real data from backend
+        const fetchLogs = async () => {
+            try {
+                const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const res = await fetch(`${API_BASE}/api/logs?limit=1000`);
+                const json = await res.json();
+                setLogs(json.logs || []);
+            } catch (error) {
+                console.error('Failed to fetch logs:', error);
+                setLogs([]);
+            }
+        };
+        fetchLogs();
     }, []);
 
     const indexOfLastLog = currentPage * logsPerPage;
@@ -93,18 +105,18 @@ export default function Requests() {
                                     </td>
                                     <td className="px-6 py-3 whitespace-nowrap">
                                         <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide border ${(log.status === 'success')
-                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-                                                : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                                            : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20'
                                             }`}>
                                             <div className={`w-1.5 h-1.5 rounded-full ${(log.status === 'success') ? 'bg-emerald-500' : 'bg-rose-500'}`} />
                                             {(log.status === 'success') ? '200 OK' : 'ERR'}
                                         </div>
                                     </td>
                                     <td className="px-6 py-3 text-gray-900 dark:text-gray-300 max-w-[300px] font-mono text-xs">
-                                        <div className="truncate opacity-90">{log.request}</div>
+                                        <div className="truncate opacity-90">{log.prompt || log.request || 'N/A'}</div>
                                     </td>
                                     <td className="px-6 py-3 text-gray-600 dark:text-gray-400 max-w-[300px] font-mono text-xs">
-                                        <div className="truncate opacity-80">{log.response}</div>
+                                        <div className="truncate opacity-80">{log.response || 'N/A'}</div>
                                     </td>
                                     <td className="px-6 py-3 whitespace-nowrap">
                                         <span className="text-xs font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-white/5 px-2 py-1 rounded border border-gray-200 dark:border-white/5">
@@ -115,7 +127,7 @@ export default function Requests() {
                                         {log.totalTokens.toLocaleString()}
                                     </td>
                                     <td className="px-6 py-3 text-right text-gray-900 dark:text-gray-300 font-mono text-xs font-medium">
-                                        ${log.cost.toFixed(5)}
+                                        {formatCost(log.cost || 0)}
                                     </td>
                                     <td className="px-6 py-3 text-right text-gray-600 dark:text-gray-400 font-mono text-xs">
                                         {(log.duration / 1000).toFixed(2)}s

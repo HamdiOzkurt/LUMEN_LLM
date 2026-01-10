@@ -14,6 +14,7 @@ import {
     ResponsiveContainer,
 } from "recharts";
 import { Activity, AlertCircle } from "lucide-react";
+import { formatCost } from "@/lib/formatters";
 
 const MODEL_COLORS: Record<string, string> = {
     'gemini-2.5-flash': '#3b82f6',
@@ -108,13 +109,148 @@ export default function Dashboard() {
     const [data, setData] = useState<any>(null);
 
     useEffect(() => {
-        setLoading(true); // Show loading spinner on change
-        // Simulate API call
-        setTimeout(() => {
-            setData(generateMockDashboardData(timeRange));
-            setLoading(false);
-        }, 600);
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // Calculate date range
+                const now = new Date();
+                let startDate = new Date();
+                let groupBy = 'day';
+
+                if (timeRange === '24h') {
+                    startDate.setHours(now.getHours() - 24);
+                    groupBy = 'hour';
+                } else if (timeRange === '7d') {
+                    startDate.setDate(now.getDate() - 7);
+                    groupBy = 'day';
+                } else if (timeRange === '1m') {
+                    startDate.setMonth(now.getMonth() - 1);
+                    groupBy = 'day';
+                } else if (timeRange === '3m') {
+                    startDate.setMonth(now.getMonth() - 3);
+                    groupBy = 'week';
+                }
+
+                const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const res = await fetch(`${API_BASE}/api/logs?limit=10000&startDate=${startDate.toISOString()}`);
+                const json = await res.json();
+                const logs = json.logs || [];
+
+                // Aggregate data
+                const aggregated = aggregateLogs(logs, timeRange);
+                setData(aggregated);
+            } catch (error) {
+                console.error('Failed to fetch dashboard data:', error);
+                // Fallback to mock if API fails
+                setData(generateMockDashboardData(timeRange));
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
     }, [timeRange]);
+
+    // Aggregate logs into chart data
+    const aggregateLogs = (logs: any[], range: string) => {
+        const totalRequests = logs.length;
+        const successLogs = logs.filter(l => l.status === 'success');
+        const errorLogs = logs.filter(l => l.status === 'error' || l.status === 'failed');
+        const totalCost = logs.reduce((sum, l) => sum + (l.cost || 0), 0);
+        const totalLatency = logs.reduce((sum, l) => sum + (l.duration || 0), 0);
+
+        // Group by time period
+        const grouped: any = {};
+        logs.forEach(log => {
+            const date = new Date(log.timestamp || log.createdAt);
+            let key = '';
+
+            if (range === '24h') {
+                key = date.getHours().toString().padStart(2, '0') + ':00';
+            } else if (range === '7d') {
+                key = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+            } else if (range === '1m') {
+                key = `Day ${date.getDate()}`;
+            } else {
+                key = `Week ${Math.ceil(date.getDate() / 7)}`;
+            }
+
+            if (!grouped[key]) {
+                grouped[key] = { success: 0, error: 0, cost: 0, latency: [] };
+            }
+
+            if (log.status === 'success') grouped[key].success++;
+            else grouped[key].error++;
+            grouped[key].cost += (log.cost || 0);
+            grouped[key].latency.push(log.duration || 0);
+        });
+
+        const requests = Object.keys(grouped).map(key => ({
+            date: key,
+            success: grouped[key].success,
+            error: grouped[key].error
+        }));
+
+        const costs = Object.keys(grouped).map(key => ({
+            date: key,
+            amount: grouped[key].cost
+        }));
+
+        const latencyTrend = Object.keys(grouped).map(key => ({
+            date: key,
+            value: grouped[key].latency.length > 0
+                ? grouped[key].latency.reduce((a: number, b: number) => a + b, 0) / grouped[key].latency.length / 1000
+                : 0
+        }));
+
+        // Model stats
+        const modelStats: any = {};
+        logs.forEach(log => {
+            const model = log.model || 'unknown';
+            if (!modelStats[model]) {
+                modelStats[model] = { requests: 0, cost: 0 };
+            }
+            modelStats[model].requests++;
+            modelStats[model].cost += (log.cost || 0);
+        });
+
+        const topModels = Object.entries(modelStats)
+            .sort((a: any, b: any) => b[1].requests - a[1].requests)
+            .slice(0, 4)
+            .map(([name, stats]: any, idx) => ({
+                name,
+                requests: stats.requests,
+                color: MODEL_COLORS[name] || MODEL_COLORS.default,
+                percent: Math.round((stats.requests / totalRequests) * 100)
+            }));
+
+        const modelCosts = Object.entries(modelStats)
+            .sort((a: any, b: any) => b[1].cost - a[1].cost)
+            .slice(0, 4)
+            .map(([name, stats]: any, idx) => ({
+                name,
+                cost: stats.cost,
+                color: MODEL_COLORS[name] || MODEL_COLORS.default,
+                percent: totalCost > 0 ? Math.round((stats.cost / totalCost) * 100) : 0
+            }));
+
+        return {
+            requests,
+            errors: [
+                { name: '500 Server', value: errorLogs.filter(l => l.statusCode === 500).length, color: ERROR_COLORS['500'] },
+                { name: '429 Rate Limit', value: errorLogs.filter(l => l.statusCode === 429).length, color: ERROR_COLORS['429'] },
+                { name: 'Other', value: errorLogs.filter(l => !l.statusCode || (l.statusCode !== 500 && l.statusCode !== 429)).length, color: ERROR_COLORS['400'] },
+            ],
+            topModels,
+            costs,
+            modelCosts,
+            latencyTrend,
+            totalRequests,
+            totalErrors: errorLogs.length,
+            totalCost,
+            avgLatency: totalLatency > 0 ? (totalLatency / totalRequests / 1000) : 0
+        };
+    };
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
@@ -270,7 +406,7 @@ export default function Dashboard() {
                 <div className="bg-white dark:bg-[#16161A] border border-gray-200 dark:border-white/5 rounded-xl p-6 shadow-sm dark:shadow-none">
                     <div className="mb-4">
                         <h3 className="text-sm font-bold text-gray-700 dark:text-gray-400">Estimated Cost</h3>
-                        <p className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-1 font-mono tracking-tight">${data.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="text-3xl font-extrabold text-blue-600 dark:text-blue-400 mt-1 font-mono tracking-tight">{formatCost(data.totalCost)}</p>
                     </div>
                     <ResponsiveContainer width="100%" height={160}>
                         <AreaChart data={data.costs}>
@@ -304,7 +440,7 @@ export default function Dashboard() {
                                 <div className="flex-1">
                                     <div className="flex justify-between text-xs mb-1">
                                         <span className="text-gray-700 dark:text-gray-300 font-medium">{model.name}</span>
-                                        <span className="text-gray-900 dark:text-white font-mono font-bold">${model.cost.toFixed(2)}</span>
+                                        <span className="text-gray-900 dark:text-white font-mono font-bold">{formatCost(model.cost)}</span>
                                     </div>
                                     <div className="h-1.5 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
                                         <div

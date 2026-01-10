@@ -65,21 +65,49 @@ export default function Models() {
     const [models, setModels] = useState<any[]>([]);
 
     useEffect(() => {
-        // --- MOCK MODE ---
-        // Simulating API delay
-        setTimeout(() => {
-            const mockData = generateMockModelsData();
-            setModels(mockData);
-            setLoading(false);
-        }, 600);
-
-        // --- REAL MODE ---
-        /*
         const fetchModels = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/metrics/by-model`);
-                const data = await res.json();
-                setModels(data);
+                const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+                const res = await fetch(`${API_BASE}/api/logs?limit=10000`);
+                const json = await res.json();
+                const logs = json.logs || [];
+
+                // Aggregate by model
+                const modelGroups: any = {};
+                logs.forEach((log: any) => {
+                    const model = log.model || 'unknown';
+                    const provider = log.provider || 'unknown';
+                    if (!modelGroups[model]) {
+                        modelGroups[model] = {
+                            model,
+                            provider,
+                            calls: 0,
+                            tokens: 0,
+                            cost: 0,
+                            totalLatency: 0,
+                            errors: 0,
+                            lastActive: log.timestamp || log.createdAt
+                        };
+                    }
+                    modelGroups[model].calls++;
+                    modelGroups[model].tokens += (log.totalTokens || 0);
+                    modelGroups[model].cost += (log.cost || 0);
+                    modelGroups[model].totalLatency += (log.duration || 0);
+                    if (log.status === 'error' || log.status === 'failed') {
+                        modelGroups[model].errors++;
+                    }
+                    if (new Date(log.timestamp || log.createdAt) > new Date(modelGroups[model].lastActive)) {
+                        modelGroups[model].lastActive = log.timestamp || log.createdAt;
+                    }
+                });
+
+                const modelData = Object.values(modelGroups).map((m: any) => ({
+                    ...m,
+                    avgLatency: m.calls > 0 ? m.totalLatency / m.calls : 0,
+                    errorRate: m.calls > 0 ? (m.errors / m.calls) * 100 : 0
+                }));
+
+                setModels(modelData);
                 setLoading(false);
             } catch (error) {
                 console.error("Failed to fetch models", error);
@@ -87,7 +115,6 @@ export default function Models() {
             }
         };
         fetchModels();
-        */
     }, []);
 
     // Helper for efficiency badge
@@ -124,9 +151,9 @@ export default function Models() {
                                     {/* Left: Model Info */}
                                     <div className="flex items-start gap-4">
                                         <div className={`p-3 rounded-lg ${model.provider === 'openai' ? 'bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-400' :
-                                                model.provider === 'google' ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' :
-                                                    model.provider === 'anthropic' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400' :
-                                                        'bg-gray-100 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400'
+                                            model.provider === 'google' ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' :
+                                                model.provider === 'anthropic' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400' :
+                                                    'bg-gray-100 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400'
                                             }`}>
                                             <Zap className="w-6 h-6" />
                                         </div>
@@ -154,8 +181,8 @@ export default function Models() {
                                                 <Clock className="w-3 h-3" /> Latency
                                             </p>
                                             <p className={`text-lg font-bold font-mono ${model.avgLatency < 500 ? 'text-emerald-600 dark:text-emerald-400' :
-                                                    model.avgLatency > 2000 ? 'text-rose-600 dark:text-rose-400' :
-                                                        'text-amber-600 dark:text-amber-400'
+                                                model.avgLatency > 2000 ? 'text-rose-600 dark:text-rose-400' :
+                                                    'text-amber-600 dark:text-amber-400'
                                                 }`}>
                                                 {formatLatency(model.avgLatency)}
                                             </p>

@@ -24,30 +24,6 @@ const MODEL_COLORS: Record<string, string> = {
     'default': '#64748b'           // Slate
 };
 
-// --- MOCK DATA GENERATOR ---
-const generateMockAnalyticsData = () => {
-    // 1. Trends Data (Last 6 hours)
-    const hours = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00'];
-    const trends = hours.map(hour => ({
-        name: hour,
-        'gpt-4': Math.floor(Math.random() * 50) + 10,
-        'gemini-2.5-flash': Math.floor(Math.random() * 80) + 20,
-        'claude-3-opus': Math.floor(Math.random() * 30) + 5,
-        'ollama-llama3': Math.floor(Math.random() * 20) + 0,
-    }));
-
-    // 2. Performance Data
-    const perf = [
-        { name: 'gemini-2.5-flash', totalCalls: 450, totalCost: 1.25, avgLatency: 800 },
-        { name: 'gpt-4', totalCalls: 320, totalCost: 15.50, avgLatency: 1200 },
-        { name: 'claude-3-opus', totalCalls: 180, totalCost: 8.75, avgLatency: 2500 },
-        { name: 'ollama-llama3', totalCalls: 95, totalCost: 0.00, avgLatency: 150 },
-    ];
-
-    return { trends, perf };
-};
-// ----------------------------
-
 export default function Analytics() {
     const [loading, setLoading] = useState(true);
     const [modelTrends, setModelTrends] = useState<any[]>([]);
@@ -59,31 +35,67 @@ export default function Analytics() {
     const projectId = searchParams.get("projectId");
 
     useEffect(() => {
-        // --- MOCK DATA MODE ---
-        // Backend yerine buradaki sahte veriyi kullanıyoruz
-        setTimeout(() => {
-            const mockData = generateMockAnalyticsData();
-
-            setModelTrends(mockData.trends);
-            setModelPerformance(mockData.perf);
-            setAvailableModels(['gpt-4', 'gemini-2.5-flash', 'claude-3-opus', 'ollama-llama3']);
-            setLoading(false);
-        }, 800);
-
-        // API Kullanmak istediğinde burayı aç, üstteki mock kısmını sil:
-        /*
         const fetchData = async () => {
             try {
+                const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                 const query = projectId ? `&projectId=${projectId}` : '';
-                const [trendsRes, perfRes] = await Promise.all([
-                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/metrics/timeseries-by-model?hours=6${query}`),
-                    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/metrics/by-provider?${projectId ? `projectId=${projectId}` : ''}`)
-                ]);
-                // ... (data işleme kodları)
-            } catch (error) console.error(error);
+                const res = await fetch(`${API_BASE}/api/logs?limit=1000${query}`);
+                const json = await res.json();
+                const logs = json.logs || [];
+
+                // Process trends (last 6 hours)
+                const hours6ago = new Date(Date.now() - 6 * 60 * 60 * 1000);
+                const recentLogs = logs.filter((l: any) => new Date(l.timestamp || l.createdAt) > hours6ago);
+
+                // Group by hour
+                const hourlyGroups: any = {};
+                recentLogs.forEach((log: any) => {
+                    const hour = new Date(log.timestamp || log.createdAt).getHours();
+                    const key = `${hour}:00`;
+                    if (!hourlyGroups[key]) hourlyGroups[key] = {};
+                    const model = log.model || 'unknown';
+                    hourlyGroups[key][model] = (hourlyGroups[key][model] || 0) + 1;
+                });
+
+                const trendsData = Object.entries(hourlyGroups).map(([name, models]: any) => ({
+                    name,
+                    ...models
+                }));
+
+                // Get unique models
+                const models = new Set<string>();
+                recentLogs.forEach((l: any) => models.add(l.model || 'unknown'));
+
+                // Process performance by model
+                const modelGroups: any = {};
+                logs.forEach((log: any) => {
+                    const model = log.model || 'unknown';
+                    if (!modelGroups[model]) {
+                        modelGroups[model] = { calls: 0, cost: 0, latency: 0 };
+                    }
+                    modelGroups[model].calls++;
+                    modelGroups[model].cost += (log.cost || 0);
+                    modelGroups[model].latency += (log.duration || 0);
+                });
+
+                const perfData = Object.entries(modelGroups).map(([name, stats]: any) => ({
+                    name,
+                    totalCalls: stats.calls,
+                    totalCost: stats.cost,
+                    avgLatency: stats.calls > 0 ? stats.latency / stats.calls : 0
+                }));
+
+                setModelTrends(trendsData);
+                setModelPerformance(perfData);
+                setAvailableModels(Array.from(models));
+                setLoading(false);
+            } catch (error) {
+                console.error("Error fetching analytics:", error);
+                setLoading(false);
+            }
         };
+
         fetchData();
-        */
     }, [projectId]);
 
     const getModelColor = (modelName: string) => MODEL_COLORS[modelName] || MODEL_COLORS['default'];
