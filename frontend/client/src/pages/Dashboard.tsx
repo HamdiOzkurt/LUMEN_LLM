@@ -103,6 +103,10 @@ const generateMockDashboardData = (range: '24h' | '7d' | '1m' | '3m') => {
     };
 };
 
+// --- CONFIGURATION ---
+const USE_MOCK_DATA = false; // Sunum/Demo için TRUE yapın
+// ---------------------
+
 export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [timeRange, setTimeRange] = useState<'24h' | '7d' | '1m' | '3m'>('7d');
@@ -111,6 +115,16 @@ export default function Dashboard() {
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+
+            // --- MOCK DATA MODE ---
+            if (USE_MOCK_DATA) {
+                setTimeout(() => {
+                    setData(generateMockDashboardData(timeRange));
+                    setLoading(false);
+                }, 600);
+                return;
+            }
+
             try {
                 // Calculate date range
                 const now = new Date();

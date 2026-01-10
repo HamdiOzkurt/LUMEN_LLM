@@ -32,6 +32,10 @@ const generateMockLogs = (count: number) => {
     })).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 };
 
+// --- CONFIGURATION ---
+const USE_MOCK_DATA = false; // Sunum/Demo için TRUE yapın
+// ---------------------
+
 export default function Requests() {
     const [logs, setLogs] = useState<any[]>([]);
 
@@ -41,6 +45,13 @@ export default function Requests() {
 
 
     useEffect(() => {
+        // --- MOCK DATA MODE ---
+        if (USE_MOCK_DATA) {
+            const mockData = generateMockLogs(50);
+            setLogs(mockData);
+            return;
+        }
+
         // Fetch real data from backend
         const fetchLogs = async () => {
             try {
