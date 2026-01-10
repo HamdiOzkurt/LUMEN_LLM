@@ -33,7 +33,7 @@ const generateMockLogs = (count: number) => {
 };
 
 // --- CONFIGURATION ---
-const USE_MOCK_DATA = false; // Sunum/Demo için TRUE yapın
+const USE_MOCK_DATA = true; // Sunum/Demo için TRUE yapın
 // ---------------------
 
 export default function Requests() {

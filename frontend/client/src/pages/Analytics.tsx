@@ -15,6 +15,34 @@ import {
 } from "recharts";
 import { Activity } from "lucide-react";
 
+// --- CONFIGURATION ---
+const USE_MOCK_DATA = true; // Sunum için TRUE yapın
+// ---------------------
+
+const generateMockAnalyticsData = () => {
+    const models = ['gemini-2.5-flash', 'gpt-4', 'claude-3-opus', 'ollama-llama3'];
+    const hours = ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+
+    // Mock Trends
+    const trends = hours.map(h => {
+        const point: any = { name: h };
+        models.forEach(m => {
+            point[m] = Math.floor(Math.random() * 50) + 10;
+        });
+        return point;
+    });
+
+    // Mock Performance
+    const performance = models.map(m => ({
+        name: m,
+        totalCalls: Math.floor(Math.random() * 1000) + 100,
+        totalCost: Math.random() * 10,
+        avgLatency: Math.floor(Math.random() * 2000) + 500
+    }));
+
+    return { trends, performance, models };
+};
+
 // Renk paleti (Modeller için tutarlı renkler)
 const MODEL_COLORS: Record<string, string> = {
     'gemini-2.5-flash': '#8b5cf6', // Violet
@@ -36,6 +64,20 @@ export default function Analytics() {
 
     useEffect(() => {
         const fetchData = async () => {
+            setLoading(true);
+
+            // --- MOCK DATA MODE ---
+            if (USE_MOCK_DATA) {
+                setTimeout(() => {
+                    const mock = generateMockAnalyticsData();
+                    setModelTrends(mock.trends);
+                    setModelPerformance(mock.performance);
+                    setAvailableModels(mock.models);
+                    setLoading(false);
+                }, 600);
+                return;
+            }
+
             try {
                 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
                 const query = projectId ? `&projectId=${projectId}` : '';
