@@ -1,4 +1,7 @@
+
 # LLM Dashboard Backend
+<img width="1919" height="900" alt="image" src="https://github.com/user-attachments/assets/5ae9b4e7-3323-4a4d-985b-05d19cf04d70" />
+<img width="1919" height="909" alt="image" src="https://github.com/user-attachments/assets/1c28d897-b1de-4f18-a8a0-b15f59f25e05" />
 
 Central monitoring backend for LLM usage, cost, and performance tracking.
 
