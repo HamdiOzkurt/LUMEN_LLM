@@ -20,6 +20,7 @@ export class GeminiProvider extends BaseProvider {
         let usage = null;
         let error = null;
         let response = null;
+        let responseText = '';
 
         try {
             const model = this.client.getGenerativeModel({
@@ -31,6 +32,7 @@ export class GeminiProvider extends BaseProvider {
             });
 
             response = await model.generateContent(params.prompt);
+            responseText = response.response.text();
 
             // Token kullanımı
             const usageMetadata = response.response?.usageMetadata;
@@ -46,6 +48,7 @@ export class GeminiProvider extends BaseProvider {
                 type: err.name || 'unknown',
                 code: err.status || 'unknown',
             };
+            responseText = `Error: ${err.message}`;
             throw err;
         } finally {
             const duration = Date.now() - startTime;
@@ -66,6 +69,8 @@ export class GeminiProvider extends BaseProvider {
             await this.logUsage({
                 provider: 'gemini',
                 model: params.model,
+                prompt: params.prompt || '',
+                response: responseText,
                 promptTokens: usage?.promptTokens || 0,
                 completionTokens: usage?.completionTokens || 0,
                 totalTokens: usage?.totalTokens || 0,
@@ -104,9 +109,11 @@ export class GeminiProvider extends BaseProvider {
             let usage = null;
             let error = null;
             let response = null;
+            let responseText = '';
 
             try {
                 response = await originalSendMessage(message);
+                responseText = response.response.text();
 
                 const usageMetadata = response.response?.usageMetadata;
                 usage = {
@@ -120,6 +127,7 @@ export class GeminiProvider extends BaseProvider {
                     type: err.name || 'unknown',
                     code: err.status || 'unknown',
                 };
+                responseText = `Error: ${err.message}`;
                 throw err;
             } finally {
                 const duration = Date.now() - startTime;
@@ -140,6 +148,8 @@ export class GeminiProvider extends BaseProvider {
                 await this.logUsage({
                     provider: 'gemini',
                     model: params.model,
+                    prompt: message || '',
+                    response: responseText,
                     promptTokens: usage?.promptTokens || 0,
                     completionTokens: usage?.completionTokens || 0,
                     totalTokens: usage?.totalTokens || 0,

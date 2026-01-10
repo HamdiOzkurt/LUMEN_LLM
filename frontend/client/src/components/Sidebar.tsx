@@ -83,7 +83,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
               </div>
               <div className="flex flex-col">
                 <span className="font-bold text-foreground text-sm tracking-widest">LUMEN</span>
-                <span className="text-[10px] text-muted-foreground font-mono">ENTERPRISE</span>
+                <span className="text-[10px] text-gray-600 dark:text-gray-400 font-mono font-semibold">ENTERPRISE</span>
               </div>
             </div>
           )}
@@ -91,7 +91,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-2 hover:bg-white/5 rounded-lg transition-colors absolute right-4 top-1/2 -translate-y-1/2"
           >
-            {isCollapsed ? <Menu className="w-5 h-5 text-muted-foreground" /> : <X className="w-5 h-5 text-muted-foreground" />}
+            {isCollapsed ? <Menu className="w-5 h-5 text-gray-600 dark:text-gray-400" /> : <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />}
           </button>
         </div>
 
@@ -100,7 +100,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
           {navGroups.map((group, idx) => (
             <div key={idx}>
               {!isCollapsed && (
-                <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 px-2">
+                <h3 className="text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-3 px-2">
                   {group.title}
                 </h3>
               )}
@@ -113,7 +113,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
                       "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative overflow-hidden",
                       activeItem === item.id
                         ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                        : "text-gray-700 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100/50 dark:hover:bg-white/5"
                     )}
                   >
                     {activeItem === item.id && (
@@ -122,7 +122,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
 
                     <item.icon className={cn(
                       "w-5 h-5 transition-colors",
-                      activeItem === item.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                      activeItem === item.id ? "text-primary" : "text-gray-700 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white"
                     )} />
 
                     {!isCollapsed && (
@@ -149,7 +149,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
             {!isCollapsed && (
               <div className="overflow-hidden">
                 <p className="text-sm font-medium text-foreground truncate">Admin User</p>
-                <p className="text-xs text-muted-foreground truncate">admin@lumen.ai</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400 truncate">admin@lumen.ai</p>
               </div>
             )}
           </div>

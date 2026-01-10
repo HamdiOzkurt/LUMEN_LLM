@@ -20,10 +20,22 @@ export class OpenAIProvider extends BaseProvider {
         let usage = null;
         let error = null;
         let response = null;
+        let promptText = '';
+        let responseText = '';
 
         try {
+            // Extract prompt from messages
+            if (params.messages && params.messages.length > 0) {
+                promptText = params.messages.map(m => `${m.role}: ${m.content}`).join('\n');
+            }
+
             // Gerçek OpenAI çağrısı
             response = await this.client.chat.completions.create(params);
+
+            // Extract response text
+            if (response.choices && response.choices.length > 0) {
+                responseText = response.choices[0].message?.content || '';
+            }
 
             usage = {
                 promptTokens: response.usage.prompt_tokens,
@@ -37,19 +49,26 @@ export class OpenAIProvider extends BaseProvider {
                 type: err.type || 'unknown',
                 code: err.code || err.status || 'unknown',
             };
-            throw err; // Hatayı yukarı fırlat (uygulamayı etkilemeden log at)
+            responseText = `Error: ${err.message}`;
+            throw err;
         } finally {
             const duration = Date.now() - startTime;
+
+            // Extract HTTP status code
+            const statusCode = error ? (typeof error.code === 'number' ? error.code : 500) : 200;
 
             // Log kaydı oluştur
             await this.logUsage({
                 provider: 'openai',
                 model: params.model,
+                prompt: promptText,
+                response: responseText,
                 promptTokens: usage?.promptTokens || 0,
                 completionTokens: usage?.completionTokens || 0,
                 totalTokens: usage?.totalTokens || 0,
                 duration,
-                status: error ? 'error' : 'success',
+                status: error ? 'failed' : 'success',
+                statusCode: statusCode,
                 error: error || undefined,
                 cost: usage ? calculateCost('openai', params.model, usage) : 0,
                 metadata: {

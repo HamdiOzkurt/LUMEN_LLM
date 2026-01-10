@@ -11,14 +11,15 @@ async function testOllama() {
     console.log('🧪 Testing Ollama (Local LLM)...\n');
 
     const startTime = Date.now();
+    const promptText = 'Explain the importance of monitoring LLM applications in production in exactly 50 words.';
 
     try {
         // Ollama API'ye istek gönder
         console.log('📤 Sending request to Ollama...');
 
         const response = await axios.post(`${OLLAMA_BASE_URL}/api/generate`, {
-            model: 'gemma3:4b',  // veya 'mistral', 'codellama' gibi yüklü modeliniz
-            prompt: 'Say "Hello from Ollama!" in exactly 5 words.',
+            model: 'gemma3:4b',
+            prompt: promptText,
             stream: false
         });
 
@@ -28,8 +29,8 @@ async function testOllama() {
         console.log('\n✅ Response:', responseText);
 
         // Token sayısını hesapla (yaklaşık)
-        const promptTokens = 10;
-        const completionTokens = responseText.split(' ').length;
+        const promptTokens = Math.ceil(promptText.split(' ').length * 1.3);
+        const completionTokens = Math.ceil(responseText.split(' ').length * 1.3);
         const totalTokens = promptTokens + completionTokens;
 
         console.log('\n📊 Usage:');
@@ -42,19 +43,23 @@ async function testOllama() {
         const logEntry = {
             id: uuidv4(),
             timestamp: new Date().toISOString(),
-            projectId: 'test-app',
+            projectId: 'ollama-test-project',
             environment: 'development',
             provider: 'ollama',
             model: 'gemma3:4b',
+            prompt: promptText,
+            response: responseText,
             promptTokens: promptTokens,
             completionTokens: completionTokens,
             totalTokens: totalTokens,
             duration: duration,
             status: 'success',
+            statusCode: 200,
             cost: 0, // Local model, no cost
             metadata: {
                 test: true,
-                local: true
+                local: true,
+                ollamaVersion: response.data.model || 'unknown'
             }
         };
 

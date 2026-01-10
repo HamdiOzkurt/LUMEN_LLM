@@ -1,159 +1,184 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
-import { Shield, Zap, TrendingDown, DollarSign } from "lucide-react";
-import { formatCost } from "@/lib/formatters";
+import { formatCost, formatLatency } from "@/lib/formatters";
+import { Zap, DollarSign, Clock, CheckCircle, AlertTriangle } from "lucide-react";
 
-// API Configuration
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// --- MOCK DATA GENERATOR ---
+const generateMockModelsData = () => {
+    return [
+        {
+            model: 'gpt-4',
+            provider: 'openai',
+            calls: 12450,
+            tokens: 4500000,
+            cost: 135.50,
+            avgLatency: 1200, // 1.2s
+            errorRate: 0.5, // %
+            lastActive: new Date().toISOString()
+        },
+        {
+            model: 'gpt-3.5-turbo',
+            provider: 'openai',
+            calls: 8540,
+            tokens: 2100000,
+            cost: 4.20,
+            avgLatency: 450, // 0.45s
+            errorRate: 0.2,
+            lastActive: new Date(Date.now() - 3600000).toISOString()
+        },
+        {
+            model: 'gemini-2.5-flash',
+            provider: 'google',
+            calls: 5600,
+            tokens: 3200000,
+            cost: 2.10, // Very cheap
+            avgLatency: 350, // Super fast
+            errorRate: 0.1,
+            lastActive: new Date().toISOString()
+        },
+        {
+            model: 'claude-3-opus',
+            provider: 'anthropic',
+            calls: 310,
+            tokens: 850000,
+            cost: 12.75, // Expensive
+            avgLatency: 2800, // Slow
+            errorRate: 0.8,
+            lastActive: new Date(Date.now() - 7200000).toISOString()
+        },
+        {
+            model: 'ollama-llama3',
+            provider: 'ollama',
+            calls: 120,
+            tokens: 54000,
+            cost: 0.00, // Free
+            avgLatency: 150, // Local fast
+            errorRate: 0.0,
+            lastActive: new Date(Date.now() - 86400000).toISOString()
+        }
+    ];
+};
+// ----------------------------
 
 export default function Models() {
-    const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [models, setModels] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchLogs = async () => {
+        // --- MOCK MODE ---
+        // Simulating API delay
+        setTimeout(() => {
+            const mockData = generateMockModelsData();
+            setModels(mockData);
+            setLoading(false);
+        }, 600);
+
+        // --- REAL MODE ---
+        /*
+        const fetchModels = async () => {
             try {
-                // Fetch logs to calculate stats
-                const res = await fetch(`${API_BASE}/api/logs?limit=500`); // Fetch 500 for better stats
+                const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/metrics/by-model`);
                 const data = await res.json();
-                setLogs(data.logs || []);
+                setModels(data);
                 setLoading(false);
             } catch (error) {
-                console.error('Error fetching logs for models:', error);
+                console.error("Failed to fetch models", error);
                 setLoading(false);
             }
         };
-
-        fetchLogs();
+        fetchModels();
+        */
     }, []);
 
-    // Calculate model performance from real logs
-    const modelStats = logs.reduce((acc: any, log: any) => {
-        if (!acc[log.model]) {
-            acc[log.model] = {
-                count: 0,
-                totalLatency: 0,
-                totalCost: 0,
-                totalTokens: 0,
-                provider: log.provider,
-                minLatency: Infinity,
-                maxLatency: -Infinity
-            };
-        }
-        const duration = log.duration || 0;
-        acc[log.model].count += 1;
-        acc[log.model].totalLatency += duration;
-        acc[log.model].totalCost += log.cost || 0;
-        acc[log.model].totalTokens += (log.prompt_tokens || 0) + (log.completion_tokens || 0);
-        acc[log.model].minLatency = Math.min(acc[log.model].minLatency, duration);
-        acc[log.model].maxLatency = Math.max(acc[log.model].maxLatency, duration);
-        return acc;
-    }, {});
-
-    const dynamicModelData = Object.keys(modelStats).map(model => {
-        const stat = modelStats[model];
-        const avgLatency = Math.round(stat.totalLatency / stat.count);
-        const avgTokens = Math.round(stat.totalTokens / stat.count);
-
-        // Calculate efficiency score (Arbitrary algo for demo)
-        const efficiency = Math.max(10, Math.min(100, 100 - (avgLatency / 30)));
-
-        return {
-            model: model,
-            costPer1k: (stat.totalCost / stat.count) * 1000,
-            avgCost: (stat.totalCost / stat.count),
-            latency: avgLatency,
-            minLatency: stat.minLatency,
-            maxLatency: stat.maxLatency,
-            avgTokens: avgTokens,
-            efficiency: Math.round(efficiency),
-            provider: stat.provider,
-            totalRequests: stat.count
-        };
-    });
+    // Helper for efficiency badge
+    const getEfficiencyBadge = (cost: number, latency: number) => {
+        if (cost === 0 && latency < 500) return <span className="px-2 py-0.5 rounded textxs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">Ultra Efficient</span>;
+        if (cost < 5 && latency < 600) return <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400">High Performance</span>;
+        if (cost > 50) return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">Premium</span>;
+        return <span className="px-2 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-400">Standard</span>;
+    };
 
     return (
         <DashboardLayout>
             <div className="flex flex-col gap-8">
-
-                {/* Header */}
                 <div>
-                    <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-                        <Shield className="w-8 h-8 text-indigo-500" />
-                        Model Benchmark
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                        <Zap className="w-8 h-8 text-amber-500" />
+                        Model Performance
                     </h1>
-                    <p className="text-muted-foreground mt-1">
-                        Comparative analysis of cost, latency, and throughput across different AI models.
+                    <p className="text-gray-600 dark:text-gray-400 mt-1">
+                        Comparative analysis of latency, cost, and reliability across all active models.
                     </p>
                 </div>
 
-                {/* Models Grid */}
                 {loading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
-                ) : dynamicModelData.length === 0 ? (
-                    <div className="glassmorphic p-12 text-center rounded-xl border border-white/10">
-                        <p className="text-muted-foreground">No traffic data available to benchmark models yet.</p>
-                    </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {dynamicModelData.map((model, i) => (
-                            <div key={i} className="glassmorphic p-0 rounded-xl border border-white/10 overflow-hidden flex flex-col hover:border-indigo-500/30 transition-all duration-300">
-                                {/* Card Header */}
-                                <div className="bg-white/5 p-6 border-b border-white/5 flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <h3 className="text-lg font-bold text-foreground">{model.model}</h3>
-                                            <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/20">{model.provider}</span>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground font-mono">{model.totalRequests} samples analyzed</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className="text-2xl font-bold text-foreground">{model.efficiency}</div>
-                                        <div className="text-[10px] text-muted-foreground uppercase tracking-widest">Score</div>
-                                    </div>
-                                </div>
+                    <div className="grid grid-cols-1 gap-6">
+                        {models.map((model) => (
+                            <div key={model.model} className="bg-white dark:bg-[#16161A] p-6 rounded-xl border border-gray-200 dark:border-white/5 hover:border-amber-500/30 transition-all shadow-sm group">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
 
-                                {/* Metrics */}
-                                <div className="p-6 space-y-6 flex-1">
-
-                                    {/* Latency Section */}
-                                    <div>
-                                        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                                            <Zap className="w-3 h-3" /> Latency
+                                    {/* Left: Model Info */}
+                                    <div className="flex items-start gap-4">
+                                        <div className={`p-3 rounded-lg ${model.provider === 'openai' ? 'bg-green-100 text-green-600 dark:bg-green-500/10 dark:text-green-400' :
+                                                model.provider === 'google' ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400' :
+                                                    model.provider === 'anthropic' ? 'bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400' :
+                                                        'bg-gray-100 text-gray-600 dark:bg-gray-500/10 dark:text-gray-400'
+                                            }`}>
+                                            <Zap className="w-6 h-6" />
                                         </div>
-                                        <div className="relative pt-1">
-                                            <div className="flex items-end gap-2 mb-1">
-                                                <span className="text-2xl font-mono text-foreground font-bold">{model.latency}<span className="text-sm text-muted-foreground font-normal">ms</span></span>
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-1">
+                                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">{model.model}</h3>
+                                                {getEfficiencyBadge(model.cost, model.avgLatency)}
                                             </div>
-                                            <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
-                                                <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(100, (model.latency / 1000) * 100)}%` }}></div>
-                                            </div>
-                                            <div className="flex justify-between mt-1 text-[10px] text-muted-foreground font-mono">
-                                                <span>Min: {model.minLatency}ms</span>
-                                                <span>Max: {model.maxLatency}ms</span>
-                                            </div>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 font-mono capitalize">{model.provider}</p>
                                         </div>
                                     </div>
 
-                                    {/* Cost Section */}
-                                    <div>
-                                        <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                                            <DollarSign className="w-3 h-3" /> Cost Efficiency
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-secondary/30 p-3 rounded-lg border border-white/5">
-                                                <div className="text-[10px] text-muted-foreground mb-1">Per 1k Req</div>
-                                                <div className="font-mono text-indigo-400 font-bold">${model.costPer1k.toFixed(4)}</div>
-                                            </div>
-                                            <div className="bg-secondary/30 p-3 rounded-lg border border-white/5">
-                                                <div className="text-[10px] text-muted-foreground mb-1">Avg Request</div>
-                                                <div className="font-mono text-indigo-400 font-bold">{formatCost(model.avgCost)}</div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    {/* Right: Metrics Grid */}
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-12 w-full md:w-auto">
 
+                                        <div className="text-center md:text-right">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center justify-center md:justify-end gap-1">
+                                                <DollarSign className="w-3 h-3" /> Cost
+                                            </p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">{formatCost(model.cost)}</p>
+                                        </div>
+
+                                        <div className="text-center md:text-right">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center justify-center md:justify-end gap-1">
+                                                <Clock className="w-3 h-3" /> Latency
+                                            </p>
+                                            <p className={`text-lg font-bold font-mono ${model.avgLatency < 500 ? 'text-emerald-600 dark:text-emerald-400' :
+                                                    model.avgLatency > 2000 ? 'text-rose-600 dark:text-rose-400' :
+                                                        'text-amber-600 dark:text-amber-400'
+                                                }`}>
+                                                {formatLatency(model.avgLatency)}
+                                            </p>
+                                        </div>
+
+                                        <div className="text-center md:text-right">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Requests</p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">{model.calls.toLocaleString()}</p>
+                                        </div>
+
+                                        <div className="text-center md:text-right">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Reliability</p>
+                                            <div className="flex items-center justify-center md:justify-end gap-1">
+                                                {(100 - model.errorRate) > 99 ? (
+                                                    <CheckCircle className="w-4 h-4 text-emerald-500" />
+                                                ) : (
+                                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                )}
+                                                <p className="text-lg font-bold text-gray-900 dark:text-white font-mono">{(100 - model.errorRate).toFixed(1)}%</p>
+                                            </div>
+                                        </div>
+
+                                    </div>
                                 </div>
                             </div>
                         ))}

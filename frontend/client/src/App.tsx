@@ -32,6 +32,7 @@ function Router() {
       <Route path={"/requests"} component={Requests} />
       <Route path={"/models"} component={Models} />
       <Route path={"/projects"} component={Projects} />
+      <Route path={"/analytics"} component={Analytics} />
       <Route path={"/settings"} component={Settings} />
       <Route path={"/keys"} component={ApiKeys} />
 
