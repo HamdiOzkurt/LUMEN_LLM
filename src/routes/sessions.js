@@ -180,4 +180,22 @@ router.get('/stats/summary', async (req, res) => {
     }
 });
 
+// 7. Session Sil
+router.delete('/:sessionId', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const session = await Session.findOneAndDelete({ sessionId });
+
+        if (!session) {
+            return res.status(404).json({ error: 'Session not found' });
+        }
+
+        console.log('🗑️ Session deleted:', sessionId);
+        res.json({ success: true, message: 'Session deleted successfully' });
+    } catch (error) {
+        console.error('❌ Session delete error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 export default router;

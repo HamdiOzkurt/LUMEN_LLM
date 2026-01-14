@@ -1,20 +1,10 @@
-/**
- * Session Sistemi Test Dosyası
- * 
- * Bu dosya session bazlı izleme sisteminin nasıl kullanılacağını gösterir.
- * 
- * Kullanım:
- * 1. .env dosyasına GEMINI_API_KEY ekleyin
- * 2. Backend'i başlatın: npm start (llm_dashboard dizininde)
- * 3. Bu dosyayı çalıştırın: node test-session.js
- */
 
 import { GeminiProvider } from '../src/index.js';
-import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 import dotenv from 'dotenv';
 
-// .env dosyasını bir üst dizinden oku (../.env)
+// Load env vars
 dotenv.config({ path: '../.env' });
 
 async function testSessionSystem() {
@@ -22,7 +12,7 @@ async function testSessionSystem() {
 
     // 1. Session ID ve User ID oluştur
     const sessionId = `session-${uuidv4()}`;
-    const userId = 'senior-dev-01';
+    const userId = 'hamdi_ozkurt';
 
     console.log(`📝 Session ID: ${sessionId}`);
     console.log(`👤 User ID: ${userId}\n`);
@@ -71,12 +61,19 @@ async function testSessionSystem() {
     // ADIM 1: Sorun Tanımı (Kullanıcı)
     try {
         console.log('\n👤 Adım 1: Kullanıcı sorunu anlatıyor...');
-        const prompt1 = "React'te basit bir useEffect yazdım ama console.log iki kere çalışıyor. Component sadece bir kere render oluyor gibi görünüyor ama log iki tane. Neden olabilir? Kodum şöyle:\n\n```javascript\nuseEffect(() => {\n  console.log('Mounted');\n}, []);\n```";
+        const prompt1 = `React'te basit bir useEffect yazdım ama console.log iki kere çalışıyor. 
+Component sadece bir kere render oluyor gibi görünüyor ama log iki tane. Neden olabilir? Kodum şöyle:
+
+\`\`\`javascript
+useEffect(() => {
+  console.log('Mounted');
+}, []);
+\`\`\``;
 
         await llm.generateContent({
             model: 'gemini-2.5-flash',
             prompt: prompt1,
-            maxOutputTokens: 1000
+            maxOutputTokens: 2048
         });
         console.log('✅ Adım 1 tamamlandı.');
     } catch (error) { console.error('Hata:', error.message); }
@@ -89,7 +86,7 @@ async function testSessionSystem() {
         await llm.generateContent({
             model: 'gemini-2.5-flash',
             prompt: "Peki bunu production'da da yaşar mıyım? Yoksa sadece development ortamına mı özel? Strict Mode'u nasıl kapatırım?",
-            maxOutputTokens: 1000
+            maxOutputTokens: 2048
         });
         console.log('✅ Adım 2 tamamlandı.');
     } catch (error) { console.error('Hata:', error.message); }
@@ -102,8 +99,9 @@ async function testSessionSystem() {
         await llm.generateContent({
             model: 'gemini-2.5-flash',
             prompt: "Anladım, teşekkürler! Strict Mode kalsın o zaman, side effectleri temizlemeyi öğrenmem daha iyi olur.",
-            maxOutputTokens: 500
+            maxOutputTokens: 1000
         });
+        console.log('✅ Adım 3 tamamlandı.');
     } catch (error) { console.error('Hata:', error.message); }
 
     // 4. Session'ı tamamla

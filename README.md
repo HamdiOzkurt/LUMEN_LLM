@@ -98,6 +98,21 @@ Session sistemi, her LLM çağrısını bağımsız log olarak değil, **anlaml�
 - ✅ **Performans İzleme:** Session bazında toplam süre ve yanıt süreleri
 - ✅ **Debugging:** Tüm konuşma geçmişini bir arada görün
 
+### 🎯 Neden User ID Kullanmalısınız? (Geliştiriciler İçin)
+
+Bu sistemin en güçlü yanı, `userId` parametresi ile sağladığı **kişiselleştirilmiş izleme yeteneğidir**. Kendi projenizdeki kullanıcıların (son kullanıcıların) ID'lerini SDK'ya ileterek şunları kazanısınız:
+
+1.  **🕵️‍♂️ Müvekkil/Müşteri Bazlı Debugging:**
+    Müşteriniz "Botunuz bana yanlış cevap verdi" dediğinde, Dashboard'a girip o müşterinin `userId`'sini aratarak, yaşadığı tüm konuşma geçmişini ve hatanın kaynağını (Prompt mu, Model mi?) saniyeler içinde görebilirsiniz.
+
+2.  **💰 Maliyetin Sorumlusunu Bulma:**
+    "API kotam neden hemen bitti?" sorusunun cevabı artık gizli değil. Hangi kullanıcınızın veya departmanınızın sistemi en çok kullandığını ve ne kadar maliyet oluşturduğunu tek tıkla tespit edin.
+
+3.  **🛡️ Bot ve Kötü Niyetli Kullanım Tespiti:**
+    Olağandışı aktivite gösteren bir `userId` tespit ettiğinizde, sisteminize zarar gelmeden o kullanıcıyı izleyebilir ve önlem alabilirsiniz.
+
+> **Özet:** `userId` olmadan bu sadece bir sayaçtır; `userId` ile ise **profesyonel bir müşteri destek ve analiz aracıdır.**
+
 ### Kullanım Örneği (Gemini)
 
 ```javascript
@@ -119,7 +134,7 @@ const llm = new GeminiProvider({
 
 // İlk mesaj
 const response1 = await llm.generateContent({
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.5-flash',
   prompt: 'Merhaba! Yapay zeka nedir?',
   temperature: 0.7,
   maxOutputTokens: 100
@@ -127,7 +142,7 @@ const response1 = await llm.generateContent({
 
 // İkinci mesaj (aynı session)
 const response2 = await llm.generateContent({
-  model: 'gemini-1.5-flash',
+  model: 'gemini-2.5-flash',
   prompt: 'Kullanım alanları nelerdir?',
   temperature: 0.7,
   maxOutputTokens: 100
