@@ -1,3 +1,6 @@
+// Cost utilities
+import { calculateCost, calculateBatchCost, getPricing } from './cost-calculator.js';
+
 // Providers
 import { OpenAIProvider } from './providers/openai.js';
 import { GeminiProvider } from './providers/gemini.js';
@@ -6,8 +9,8 @@ import { BaseProvider } from './providers/base.js';
 // Re-export providers
 export { OpenAIProvider, GeminiProvider, BaseProvider };
 
-// Cost utilities
-export { calculateCost, calculateBatchCost, getPricing } from './cost-calculator.js';
+// Re-export cost utilities
+export { calculateCost, calculateBatchCost, getPricing };
 
 /**
  * Factory fonksiyon - provider oluştur

@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import Team from "./pages/Team";
 import ApiKeys from "./pages/ApiKeys";
 import Docs from "./pages/Docs";
+import Sessions from "./pages/Sessions";
 
 function Router() {
   const [location, setLocation] = useLocation();
@@ -33,6 +34,7 @@ function Router() {
       <Route path={"/models"} component={Models} />
       <Route path={"/projects"} component={Projects} />
       <Route path={"/analytics"} component={Analytics} />
+      <Route path={"/sessions"} component={Sessions} />
       <Route path={"/settings"} component={Settings} />
       <Route path={"/keys"} component={ApiKeys} />
 

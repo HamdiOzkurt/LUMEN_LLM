@@ -79,6 +79,18 @@ export class OpenAIProvider extends BaseProvider {
                     streaming: params.stream || false,
                 },
             });
+
+            // Eğer sessionId varsa, mesajı session'a da ekle
+            if (this.config.sessionId && !error) {
+                await this._addToSession({
+                    role: 'assistant',
+                    content: responseText,
+                    promptTokens: usage?.promptTokens || 0,
+                    completionTokens: usage?.completionTokens || 0,
+                    cost: usage ? calculateCost('openai', params.model, usage) : 0,
+                    duration
+                });
+            }
         }
 
         return response;

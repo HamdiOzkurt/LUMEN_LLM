@@ -12,6 +12,8 @@ export class BaseProvider {
             backendUrl: config.backendUrl || 'http://localhost:3000/api',
             projectId: config.projectId || 'default',
             environment: config.environment || 'production',
+            sessionId: config.sessionId || null,
+            userId: config.userId || null,
             sendToBackend: config.sendToBackend !== false, // default true
             debug: config.debug || false,
         };
@@ -40,6 +42,8 @@ export class BaseProvider {
             timestamp: new Date().toISOString(),
             projectId: this.config.projectId,
             environment: this.config.environment,
+            sessionId: this.config.sessionId,
+            userId: this.config.userId,
             apiKeyMask: keyMask, // Yeni alan: Key ayrımı için
             ...data,
         };
@@ -95,5 +99,37 @@ export class BaseProvider {
      */
     async createCompletion(params) {
         throw new Error('createCompletion must be implemented by provider');
+    }
+
+    /**
+     * Session'a mesaj ekle
+     */
+    async _addToSession(messageData) {
+        if (!this.config.sessionId || !this.config.sendToBackend) return;
+
+        try {
+            await axios.post(
+                `${this.config.backendUrl}/sessions/${this.config.sessionId}/messages`,
+                {
+                    id: uuidv4(),
+                    ...messageData
+                },
+                {
+                    timeout: 5000,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Project-ID': this.config.projectId,
+                    }
+                }
+            );
+
+            if (this.config.debug) {
+                console.log('[LLM Monitor] ✅ Message added to session');
+            }
+        } catch (error) {
+            if (this.config.debug) {
+                console.error('[LLM Monitor] ❌ Session update failed:', error.message);
+            }
+        }
     }
 }

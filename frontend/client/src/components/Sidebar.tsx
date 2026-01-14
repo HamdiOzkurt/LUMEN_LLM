@@ -11,7 +11,8 @@ import {
   FileText,
   Menu,
   X,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLocation, Link } from "wouter";
@@ -36,6 +37,7 @@ export default function Sidebar({ className, onNavChange, activeNav: propActiveN
       items: [
         { id: "dashboard", label: "Dashboard", icon: BarChart3, path: "/dashboard" },
         { id: "requests", label: "Requests", icon: Terminal, path: "/requests" },
+        { id: "sessions", label: "Sessions", icon: MessageSquare, path: "/sessions" },
       ]
     },
     {

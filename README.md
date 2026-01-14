@@ -29,6 +29,7 @@ llm_dashboard/
 
 ## Temel Özellikler
 
+- **Session Bazlı İzleme:** 🆕 Konuşma oturumlarını grupla, kullanıcı davranışlarını analiz et. Her mesajı ayrı değil, anlamlı konuşmalar olarak takip et.
 - **Detaylı Maliyet Analizi:** Proje, sağlayıcı (OpenAI, Google vb.) ve model bazlı harcamalarınızı gerçek zamanlı takip edin. Hangi özelliğin ne kadar maliyet oluşturduğunu net bir şekilde görün.
 - **Performans ve Latency Takibi:** İsteklerin yanıt sürelerini izleyin, yavaşlayan modelleri veya anormal gecikmeleri anında tespit ederek kullanıcı deneyimini iyileştirin.
 - **Token Kullanım İstatistikleri:** Prompt (girdi) ve Completion (çıktı) token sayılarını ayrıştırarak model kullanım yoğunluğunu analiz edin.
@@ -72,6 +73,7 @@ Proje kök dizininde bir `.env` dosyası oluşturun ve aşağıdaki ayarları ya
 PORT=3000
 MONGODB_URI=mongodb://localhost:27017/llm_dashboard
 NODE_ENV=production
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ### 3. Servisi Başlatma
@@ -84,16 +86,81 @@ npm run dev
 npm start
 ```
 
+## 🆕 Session Bazlı İzleme Sistemi
+
+Session sistemi, her LLM çağrısını bağımsız log olarak değil, **anlamlı konuşma oturumları** olarak gruplar.
+
+### Faydaları
+
+- ✅ **Konuşma Bağlamı:** Hangi mesajların aynı konuşmaya ait olduğunu görün
+- ✅ **Kullanıcı Analizi:** Ortalama mesaj sayısı, konuşma süresi, kullanıcı davranışları
+- ✅ **Maliyet Optimizasyonu:** Session bazında maliyet analizi ($0.03/session)
+- ✅ **Performans İzleme:** Session bazında toplam süre ve yanıt süreleri
+- ✅ **Debugging:** Tüm konuşma geçmişini bir arada görün
+
+### Kullanım Örneği (Gemini)
+
+```javascript
+import { GeminiProvider } from '@llm-dashboard/monitor-sdk';
+import { v4 as uuidv4 } from 'uuid';
+
+// Session ID oluştur
+const sessionId = `session-${uuidv4()}`;
+
+// Provider'ı session bilgisi ile başlat
+const llm = new GeminiProvider({
+  apiKey: process.env.GEMINI_API_KEY,
+  backendUrl: 'http://localhost:3000/api',
+  projectId: 'my-chatbot',
+  sessionId: sessionId,     // Session ID
+  userId: 'user-123',       // Kullanıcı ID
+  debug: true
+});
+
+// İlk mesaj
+const response1 = await llm.generateContent({
+  model: 'gemini-1.5-flash',
+  prompt: 'Merhaba! Yapay zeka nedir?',
+  temperature: 0.7,
+  maxOutputTokens: 100
+});
+
+// İkinci mesaj (aynı session)
+const response2 = await llm.generateContent({
+  model: 'gemini-1.5-flash',
+  prompt: 'Kullanım alanları nelerdir?',
+  temperature: 0.7,
+  maxOutputTokens: 100
+});
+
+// Session'ı tamamla
+await axios.patch(`http://localhost:3000/api/sessions/${sessionId}/complete`);
+```
+
+### Test Etme
+
+```bash
+# Session sistemini test et
+node test-session.js
+```
+
 ## Entegrasyon ve API Kullanımı
 
 Sistemin verileri analiz edebilmesi için, client veya server tarafındaki uygulamalarınızın yaptığı LLM çağrılarını bu backend servisine iletmesi gerekmektedir.
 
-### API Endpoints (Özet)
+### API Endpoints
 
 Bu servis, verileri toplamak ve raporlamak için aşağıdaki ana erişim noktalarını sunar:
 
-- **Veri Girişi (POST /api/logs):** Uygulamanızın yaptığı her LLM işlemini (OpenAI call, Gemini call vb.) buraya gönderirsiniz.
-- **Raporlama (GET /api/metrics):** Maliyet, token kullanımı ve zaman serisi verilerini çeker.
+- **POST /api/logs** - LLM çağrısı kaydı
+- **GET /api/logs** - Log listesi (filtreleme)
+- **GET /api/metrics** - Maliyet ve performans metrikleri
+- **POST /api/sessions** - Yeni session oluştur
+- **POST /api/sessions/:id/messages** - Session'a mesaj ekle
+- **GET /api/sessions** - Session listesi
+- **GET /api/sessions/:id** - Session detayları
+- **PATCH /api/sessions/:id/complete** - Session'ı tamamla
+- **GET /api/sessions/stats/summary** - Session istatistikleri
 
 ## Gerçek Zamanlı İzleme (WebSocket)
 
@@ -101,10 +168,26 @@ Panel üzerindeki veriler canlı olarak akar.
 
 ```javascript
 const socket = io("http://localhost:3000");
+
+// Yeni log bildirimi
 socket.on("new-log", (log) => {
-  console.log("Yeni LLM kullanımı tespit edildi:", log);
+  console.log("Yeni LLM kullanımı:", log);
+});
+
+// Session güncellemesi
+socket.on("session-updated", (session) => {
+  console.log("Session güncellendi:", session);
 });
 ```
+
+## Dashboard Görünümleri
+
+- **📊 Dashboard:** Genel bakış ve metrikler
+- **📝 Requests:** Tüm LLM çağrıları
+- **🤖 Models:** Model bazlı analiz
+- **💬 Sessions:** Konuşma oturumları (YENİ!)
+- **📈 Analytics:** Detaylı analizler
+- **⚙️ Settings:** Ayarlar ve yapılandırma
 
 ## Lisans
 

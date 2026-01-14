@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 // Routes
 import logsRouter from './routes/logs.js';
 import metricsRouter from './routes/metrics.js';
+import sessionsRouter from './routes/sessions.js';
 
 // Load environment variables
 dotenv.config();
@@ -49,12 +50,14 @@ app.get('/', (req, res) => {
         endpoints: {
             logs: '/api/logs',
             metrics: '/api/metrics',
+            sessions: '/api/sessions',
         }
     });
 });
 
 app.use('/api/logs', logsRouter);
 app.use('/api/metrics', metricsRouter);
+app.use('/api/sessions', sessionsRouter);
 
 // WebSocket için real-time updates
 global.io = io;

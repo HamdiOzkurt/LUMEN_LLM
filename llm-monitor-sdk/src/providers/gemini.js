@@ -9,6 +9,16 @@ import { calculateCost } from '../cost-calculator.js';
 export class GeminiProvider extends BaseProvider {
     constructor(config) {
         super(config);
+
+        // 🔒 API Key Validasyonu
+        if (!config.apiKey) {
+            throw new Error('❌ GeminiProvider: API key is undefined! Check your .env file for GEMINI_API_KEY or GOOGLE_API_KEY');
+        }
+
+        if (config.debug) {
+            console.log('[GeminiProvider] API Key:', config.apiKey.substring(0, 10) + '...');
+        }
+
         this.client = new GoogleGenerativeAI(config.apiKey);
     }
 
@@ -84,6 +94,29 @@ export class GeminiProvider extends BaseProvider {
                     maxOutputTokens: params.maxOutputTokens,
                 },
             });
+
+            // Eğer sessionId varsa, mesajları session'a ekle
+            if (this.config.sessionId && !error) {
+                // 1. Kullanıcı mesajı (Prompt)
+                await this._addToSession({
+                    role: 'user',
+                    content: params.prompt || '',
+                    promptTokens: usage?.promptTokens || 0, // Prompt token user mesajına aittir
+                    completionTokens: 0,
+                    cost: 0, // Prompt maliyeti genelde assistant yanıtıyla hesaplanır ama burada ayırabiliriz, şimdilik 0
+                    duration: 0
+                });
+
+                // 2. Asistan mesajı (Response)
+                await this._addToSession({
+                    role: 'assistant',
+                    content: responseText,
+                    promptTokens: 0,
+                    completionTokens: usage?.completionTokens || 0,
+                    cost: (usage && !error) ? calculateCost('gemini', params.model, usage) : 0,
+                    duration
+                });
+            }
         }
 
         return response;
@@ -163,6 +196,18 @@ export class GeminiProvider extends BaseProvider {
                         temperature: params.temperature,
                     },
                 });
+
+                // Eğer sessionId varsa, mesajı session'a da ekle
+                if (this.config.sessionId && !error) {
+                    await this._addToSession({
+                        role: 'assistant',
+                        content: responseText,
+                        promptTokens: usage?.promptTokens || 0,
+                        completionTokens: usage?.completionTokens || 0,
+                        cost: usage ? calculateCost('gemini', params.model, usage) : 0,
+                        duration
+                    });
+                }
             }
 
             return response;
