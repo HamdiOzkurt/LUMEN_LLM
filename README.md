@@ -201,12 +201,12 @@ socket.on("session-updated", (session) => {
 
 ![Arayüz Detayları](images/Ekran%20g%C3%B6r%C3%BCnt%C3%BCs%C3%BC%202026-01-15%20182750.png)
 
-- **📊 Dashboard:** Genel bakış ve metrikler
-- **📝 Requests:** Tüm LLM çağrıları
-- **🤖 Models:** Model bazlı analiz
-- **💬 Sessions:** Konuşma oturumları (YENİ!)
-- **📈 Analytics:** Detaylı analizler
-- **⚙️ Settings:** Ayarlar ve yapılandırma
+- **Dashboard:** Genel bakış ve metrikler
+- **Requests:** Tüm LLM çağrıları
+- **Models:** Model bazlı analiz
+- **Sessions:** Konuşma oturumları (YENİ!)
+- **Analytics:** Detaylı analizler
+- **Settings:** Ayarlar ve yapılandırma
 
 ## Lisans
 
