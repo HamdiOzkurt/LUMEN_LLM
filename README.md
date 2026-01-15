@@ -29,7 +29,7 @@ llm_dashboard/
 
 ## Temel Özellikler
 
-- **Session Bazlı İzleme:** 🆕 Konuşma oturumlarını grupla, kullanıcı davranışlarını analiz et. Her mesajı ayrı değil, anlamlı konuşmalar olarak takip et.
+- **Session Bazlı İzleme:** Konuşma oturumlarını grupla, kullanıcı davranışlarını analiz et. Her mesajı ayrı değil, anlamlı konuşmalar olarak takip et.
 - **Detaylı Maliyet Analizi:** Proje, sağlayıcı (OpenAI, Google vb.) ve model bazlı harcamalarınızı gerçek zamanlı takip edin. Hangi özelliğin ne kadar maliyet oluşturduğunu net bir şekilde görün.
 - **Performans ve Latency Takibi:** İsteklerin yanıt sürelerini izleyin, yavaşlayan modelleri veya anormal gecikmeleri anında tespit ederek kullanıcı deneyimini iyileştirin.
 - **Token Kullanım İstatistikleri:** Prompt (girdi) ve Completion (çıktı) token sayılarını ayrıştırarak model kullanım yoğunluğunu analiz edin.
@@ -86,7 +86,7 @@ npm run dev
 npm start
 ```
 
-## 🆕 Session Bazlı İzleme Sistemi
+## Session Bazlı İzleme Sistemi
 
 ![Session Analizi](images/Ekran%20g%C3%B6r%C3%BCnt%C3%BCs%C3%BC%202026-01-15%20182644.png)
 
@@ -94,23 +94,23 @@ Session sistemi, her LLM çağrısını bağımsız log olarak değil, **anlaml�
 
 ### Faydaları
 
-- ✅ **Konuşma Bağlamı:** Hangi mesajların aynı konuşmaya ait olduğunu görün
-- ✅ **Kullanıcı Analizi:** Ortalama mesaj sayısı, konuşma süresi, kullanıcı davranışları
-- ✅ **Maliyet Optimizasyonu:** Session bazında maliyet analizi ($0.03/session)
-- ✅ **Performans İzleme:** Session bazında toplam süre ve yanıt süreleri
-- ✅ **Debugging:** Tüm konuşma geçmişini bir arada görün
+- **Konuşma Bağlamı:** Hangi mesajların aynı konuşmaya ait olduğunu görün
+- **Kullanıcı Analizi:** Ortalama mesaj sayısı, konuşma süresi, kullanıcı davranışları
+- **Maliyet Optimizasyonu:** Session bazında maliyet analizi ($0.03/session)
+- **Performans İzleme:** Session bazında toplam süre ve yanıt süreleri
+- **Debugging:** Tüm konuşma geçmişini bir arada görün
 
-### 🎯 Neden User ID Kullanmalısınız? (Geliştiriciler İçin)
+### Neden User ID Kullanmalısınız? (Geliştiriciler İçin)
 
 Bu sistemin en güçlü yanı, `userId` parametresi ile sağladığı **kişiselleştirilmiş izleme yeteneğidir**. Kendi projenizdeki kullanıcıların (son kullanıcıların) ID'lerini SDK'ya ileterek şunları kazanısınız:
 
-1.  **🕵️‍♂️ Müvekkil/Müşteri Bazlı Debugging:**
+1.  **Müvekkil/Müşteri Bazlı Debugging:**
     Müşteriniz "Botunuz bana yanlış cevap verdi" dediğinde, Dashboard'a girip o müşterinin `userId`'sini aratarak, yaşadığı tüm konuşma geçmişini ve hatanın kaynağını (Prompt mu, Model mi?) saniyeler içinde görebilirsiniz.
 
-2.  **💰 Maliyetin Sorumlusunu Bulma:**
+2.  **Maliyetin Sorumlusunu Bulma:**
     "API kotam neden hemen bitti?" sorusunun cevabı artık gizli değil. Hangi kullanıcınızın veya departmanınızın sistemi en çok kullandığını ve ne kadar maliyet oluşturduğunu tek tıkla tespit edin.
 
-3.  **🛡️ Bot ve Kötü Niyetli Kullanım Tespiti:**
+3.  **Bot ve Kötü Niyetli Kullanım Tespiti:**
     Olağandışı aktivite gösteren bir `userId` tespit ettiğinizde, sisteminize zarar gelmeden o kullanıcıyı izleyebilir ve önlem alabilirsiniz.
 
 > **Özet:** `userId` olmadan bu sadece bir sayaçtır; `userId` ile ise **profesyonel bir müşteri destek ve analiz aracıdır.**
