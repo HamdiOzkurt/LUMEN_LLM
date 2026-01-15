@@ -1,7 +1,7 @@
 # LLM Dashboard Backend - Merkezi LLM İzleme ve Maliyet Yönetimi
 
-<img width="1919" height="900" alt="image" src="https://github.com/user-attachments/assets/5ae9b4e7-3323-4a4d-985b-05d19cf04d70" />
-<img width="1919" height="909" alt="image" src="https://github.com/user-attachments/assets/1c28d897-b1de-4f18-a8a0-b15f59f25e05" />
+![Dashboard Genel Görünüm](images/Ekran%20g%C3%B6r%C3%BCnt%C3%BCs%C3%BC%202026-01-15%20182526.png)
+![Dashboard Detay](images/Ekran%20g%C3%B6r%C3%BCnt%C3%BCs%C3%BC%202026-01-15%20182630.png)
 
 Yapay Zeka (LLM) operasyonlarınızın kalbi: Kullanım oranlarını, model maliyetlerini ve performans metriklerini tek bir merkezden izleyin.
 
@@ -87,6 +87,8 @@ npm start
 ```
 
 ## 🆕 Session Bazlı İzleme Sistemi
+
+![Session Analizi](images/Ekran%20g%C3%B6r%C3%BCnt%C3%BCs%C3%BC%202026-01-15%20182644.png)
 
 Session sistemi, her LLM çağrısını bağımsız log olarak değil, **anlamlı konuşma oturumları** olarak gruplar.
 
@@ -196,6 +198,8 @@ socket.on("session-updated", (session) => {
 ```
 
 ## Dashboard Görünümleri
+
+![Arayüz Detayları](images/Ekran%20g%C3%B6r%C3%BCnt%C3%BCs%C3%BC%202026-01-15%20182750.png)
 
 - **📊 Dashboard:** Genel bakış ve metrikler
 - **📝 Requests:** Tüm LLM çağrıları
