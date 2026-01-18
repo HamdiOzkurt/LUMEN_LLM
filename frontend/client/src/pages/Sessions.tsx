@@ -60,6 +60,10 @@ export default function Sessions() {
                 params: { limit: 50 } // Son 50 session
             });
             setSessions(response.data.sessions);
+            // UX: İlk yüklemede, eğer hiç session seçili değilse ve session varsa, ilkini seç
+            if (response.data.sessions.length > 0 && !selectedSession) {
+                setSelectedSession(response.data.sessions[0]);
+            }
         } catch (error) {
             console.error('Session fetch error:', error);
         } finally {

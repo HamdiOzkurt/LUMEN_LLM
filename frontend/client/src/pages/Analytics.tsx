@@ -16,7 +16,7 @@ import {
 import { Activity } from "lucide-react";
 
 // --- CONFIGURATION ---
-const USE_MOCK_DATA = true; // Sunum için TRUE yapın
+const USE_MOCK_DATA = false; // Sunum için TRUE yapın
 // ---------------------
 
 const generateMockAnalyticsData = () => {

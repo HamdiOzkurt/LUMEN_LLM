@@ -104,7 +104,7 @@ const generateMockDashboardData = (range: '24h' | '7d' | '1m' | '3m') => {
 };
 
 // --- CONFIGURATION ---
-const USE_MOCK_DATA = true; // Sunum/Demo için TRUE yapın
+const USE_MOCK_DATA = false; // Sunum/Demo için TRUE yapın
 // ---------------------
 
 export default function Dashboard() {
