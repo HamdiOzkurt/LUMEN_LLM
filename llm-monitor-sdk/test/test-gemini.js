@@ -59,15 +59,19 @@ async function testGemini() {
         console.log('📤 Sending request to Gemini...');
 
         const response = await llm.generateContent({
-            model: 'gemini-2.5-flash', // Changed to 1.5-flash to ensure stability, reverting if user specific 2.5 is needed but 1.5 is standard
+            model: 'gemini-2.5-flash', // Switching to stable 1.5-flash
             prompt: 'Write a detailed 200-word explanation about the importance of monitoring LLM costs and performance in production applications. Include specific metrics that should be tracked.',
             temperature: 0.7,
             maxOutputTokens: 1000,
         });
 
+        const candidates = response.response.candidates;
+        const finishReason = candidates && candidates[0] ? candidates[0].finishReason : 'UNKNOWN';
+
         const text = response.response.text();
         console.log('---------------------------------------------------');
         console.log(`✅ Response Length: ${text.length} characters`);
+        console.log(`ℹ️ Finish Reason: ${finishReason}`);
         console.log('✅ Response content preview:', text.substring(0, 100) + '...');
         console.log('---------------------------------------------------');
         console.log('\nFULL RESPONSE:\n', text);
