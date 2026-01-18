@@ -208,6 +208,3 @@ socket.on("session-updated", (session) => {
 - **Analytics:** Detaylı analizler
 - **Settings:** Ayarlar ve yapılandırma
 
-## Lisans
-
-ISC
